@@ -42,7 +42,7 @@ function requireCsrfHeader(req: Request, _res: Response, next: NextFunction) {
 export function createApp(db: Database, hooks: { onMutation?: () => void } = {}) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', config.trustProxy);
   app.use(securityHeaders);
   app.use(express.json({ limit: '200kb' }));
   app.use(cookieParser());

@@ -1,0 +1,49 @@
+# Render Blueprint — one web service serving the API and the built SPA from a single origin.
+#
+# Deploy:  push this repo to GitHub → render.com → New → Blueprint → pick the repo.
+# Then set DATABASE_URL (marked sync:false below) to a Postgres connection string.
+# See README "Deploying a public demo" for the full walk-through.
+
+services:
+  - type: web
+    name: smart-exam-section
+    runtime: node
+    plan: free
+    # devDependencies are needed to build; Render omits them unless asked.
+    buildCommand: npm ci --include=dev && npm run build
+    # Not `npm start` — that needs cross-env, which is a devDependency.
+    startCommand: npm run start:server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS one hop in front of the app; without this the real client IP
+      # is lost and the per-IP sign-in rate limit becomes a single global bucket.
+      - key: TRUST_PROXY
+        value: "1"
+      # Disposable public demo: seeds demo data on first boot and shows the demo
+      # credentials on the login page. Remove BOTH for a real deployment.
+      - key: ALLOW_DEMO_SEED
+        value: "true"
+      - key: DEMO_MODE
+        value: "true"
+      - key: SESSION_TTL_HOURS
+        value: "12"
+      # Paste a Postgres connection string in the Render dashboard (e.g. a free Neon database).
+      # Without it the app falls back to embedded PGlite on an ephemeral disk and loses all
+      # data on every restart — fine for a smoke test, wrong for an evaluation.
+      - key: DATABASE_URL
+        sync: false
+      # Only if your provider presents a self-signed certificate chain: set to "insecure".
+      # - key: DATABASE_SSL
+      #   value: insecure
+      # Google Sign-In — optional. The redirect URI must be
+      # https://<your-service>.onrender.com/api/auth/google/callback
+      # - key: GOOGLE_CLIENT_ID
+      #   sync: false
+      # - key: GOOGLE_CLIENT_SECRET
+      #   sync: false
+      # - key: GOOGLE_REDIRECT_URI
+      #   sync: false
+      # - key: APP_URL
+      #   sync: false

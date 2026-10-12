@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#031C16" />
     <title>Smart Examination Section</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -19,6 +19,24 @@
         background: #031c16;
       }
     </style>
+    <!--
+      Resolve the theme before first paint. Running this in <head> is the whole
+      point: doing it in React means one frame of the wrong theme. Keep the
+      storage key and the light/dark decision in step with src/lib/theme.tsx.
+    -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('theme') || 'system';
+          var light = pref === 'light' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+          document.documentElement.dataset.theme = light ? 'light' : 'dark';
+          document.documentElement.style.background = light ? '#f7f3ea' : '#031c16';
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', light ? '#F7F3EA' : '#031C16');
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

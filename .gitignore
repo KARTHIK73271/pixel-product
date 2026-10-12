@@ -7,3 +7,4 @@ dist/
 test-results/
 playwright-report/
 *.log
+PUBLIC-ACCESS-CREDENTIALS.txt

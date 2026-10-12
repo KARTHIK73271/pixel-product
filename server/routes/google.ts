@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import type { Role } from '../../shared/schemas';
-import { exchangeCode, googleConfig, newAuthorization, OAuthError, safeReturnTo, sha256, verifyIdToken } from '../auth/google';
+import { exchangeCode, googleConfig, newAuthorization, OAuthError, redirectUriFor, safeReturnTo, sha256, verifyIdToken } from '../auth/google';
 import { createSession, sessionCookieOptions } from '../auth/session';
 import { config } from '../config';
 import type { Database } from '../db/index';
@@ -72,12 +72,13 @@ export function googleRoutes(db: Database) {
       if (req.ctx) return res.redirect(303, `${cfg.appUrl}${homeFor(req.ctx.user.role)}`); // already signed in
       if (!startAllowed(req.ip ?? 'unknown')) return fail(res, 'rate_limited');
 
-      const auth = newAuthorization(cfg);
+      const redirectUri = redirectUriFor(cfg, req);
+      const auth = newAuthorization(cfg, redirectUri);
       await db.system(async (q) => {
         await q.query('delete from oauth_transactions where expires_at < now()');
         await q.query(
-          `insert into oauth_transactions (state_hash, nonce, code_verifier, return_to, expires_at) values ($1, $2, $3, $4, $5)`,
-          [sha256(auth.state), auth.nonce, auth.codeVerifier, safeReturnTo(req.query.returnTo), new Date(Date.now() + TX_TTL_MS).toISOString()],
+          `insert into oauth_transactions (state_hash, nonce, code_verifier, return_to, redirect_uri, expires_at) values ($1, $2, $3, $4, $5, $6)`,
+          [sha256(auth.state), auth.nonce, auth.codeVerifier, safeReturnTo(req.query.returnTo), redirectUri, new Date(Date.now() + TX_TTL_MS).toISOString()],
         );
       });
       res.cookie(STATE_COOKIE, auth.state, stateCookie(TX_TTL_MS));
@@ -102,9 +103,9 @@ export function googleRoutes(db: Database) {
       }
       const tx = (
         await db.system((q) =>
-          q.query<{ nonce: string; code_verifier: string; return_to: string | null; expired: boolean }>(
+          q.query<{ nonce: string; code_verifier: string; return_to: string | null; redirect_uri: string | null; expired: boolean }>(
             `delete from oauth_transactions where state_hash = $1
-             returning nonce, code_verifier, return_to, expires_at < now() as expired`,
+             returning nonce, code_verifier, return_to, redirect_uri, expires_at < now() as expired`,
             [sha256(state)],
           ),
         )
@@ -113,7 +114,7 @@ export function googleRoutes(db: Database) {
 
       let identity;
       try {
-        const idToken = await exchangeCode(cfg, code, tx.code_verifier);
+        const idToken = await exchangeCode(cfg, code, tx.code_verifier, tx.redirect_uri ?? redirectUriFor(cfg, req));
         identity = await verifyIdToken(cfg, idToken, tx.nonce);
       } catch (err) {
         const reason = err instanceof OAuthError ? err.reason : 'exchange_failed';

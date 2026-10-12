@@ -1,22 +1,19 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ClipboardCheck, KeyRound, LayoutGrid, Loader2, Lock, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, LayoutGrid, Loader2, Lock, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { loginSchema, type LoginInput, type Role } from '@shared/schemas';
+import { loginSchema, type LoginInput } from '@shared/schemas';
 import { GoogleIcon } from '@/components/GoogleIcon';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Callout } from '@/components/ui/feedback';
 import { Field, Input } from '@/components/ui/form';
 import { api, errorMessage } from '@/lib/api';
 import { homeFor, useAuth } from '@/lib/auth';
-
-interface DemoInfo {
-  enabled: boolean;
-  password?: string;
-  accounts?: { role: Role; email: string; label: string }[];
-}
+import { useTheme } from '@/lib/theme';
+import { cn } from '@/lib/utils';
 
 const CAPABILITIES = [
   {
@@ -41,9 +38,11 @@ const OAUTH_MESSAGES: Record<string, { tone: 'critical' | 'warning' | 'info'; ti
   cancelled: { tone: 'info', title: 'Google sign-in cancelled', body: () => 'No changes were made. You can try again whenever you’re ready.' },
   not_registered: {
     tone: 'critical',
-    title: 'Account not registered',
+    title: 'Not registered author',
     body: (email) =>
-      `${email ? `${email} is` : 'This Google account is'} not registered with the Examination Section. Access is limited to accounts created by the examination office — ask them to add you.`,
+      email
+        ? `${email} is not registered as an authorized author in the Examination Section. Access is restricted to pre-registered university authors and faculty.`
+        : 'This Google account is not registered as an authorized author. Please contact the administrator to register your account.',
   },
   disabled: { tone: 'critical', title: 'Account disabled', body: () => 'This account has been disabled. Contact the examination office.' },
   identity_mismatch: {
@@ -71,13 +70,13 @@ const PROOF = [
 
 export function LoginPage() {
   const { user, login, loginWithGoogle, sessionExpired } = useAuth();
+  const { resolved } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [oauth, setOauth] = useState<{ code: string; email?: string } | null>(null);
   const [redirecting, setRedirecting] = useState(false);
-  const demo = useQuery({ queryKey: ['auth', 'demo'], queryFn: () => api.get<DemoInfo>('/auth/demo'), staleTime: Infinity });
   const providers = useQuery({
     queryKey: ['auth', 'providers'],
     queryFn: () => api.get<{ password: boolean; google: boolean }>('/auth/providers'),
@@ -126,7 +125,12 @@ export function LoginPage() {
   });
 
   return (
-    <div className="grid min-h-full lg:grid-cols-[1.15fr_1fr]">
+    <div className="relative grid min-h-full lg:grid-cols-[1.15fr_1fr]">
+      {/* ───────────────────────────────── theme toggle floating in top-right */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <ThemeToggle />
+      </div>
+
       {/* ───────────────────────────────── hero */}
       <section className="relative hidden overflow-hidden border-r border-line/70 lg:flex lg:flex-col lg:justify-between lg:p-14">
         {/* blueprint grid, faded out toward the edges */}
@@ -225,20 +229,25 @@ export function LoginPage() {
               )}
             </div>
 
-            {/* Google's branding guidelines: dark theme fill #131314, stroke #8E918F, text #E3E3E3, unaltered logo */}
+            {/* Google's branding guidelines: theme-aware styling */}
             <button
               type="button"
               onClick={continueWithGoogle}
               disabled={!googleReady || redirecting}
               aria-describedby={!googleReady && providers.isFetched ? 'google-unavailable' : undefined}
-              className="mt-4 flex h-10 w-full items-center justify-center gap-3 rounded-full border border-[#8E918F] bg-[#131314] px-4 text-sm font-medium text-[#E3E3E3] transition-[background-color,box-shadow,transform] duration-200 hover:bg-[#1f1f21] hover:shadow-[0_6px_20px_-10px_rgb(0_0_0/0.9)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-[#131314]"
+              className={cn(
+                'mt-4 flex h-10 w-full items-center justify-center gap-3 rounded-full border px-4 text-sm font-medium transition-all duration-200 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55',
+                resolved === 'light'
+                  ? 'border-[#747775] bg-white text-[#1f1f1f] shadow-sm hover:bg-[#f8f9fa] hover:border-[#1f1f1f]'
+                  : 'border-[#8E918F] bg-[#131314] text-[#E3E3E3] hover:bg-[#1f1f21] hover:shadow-[0_6px_20px_-10px_rgb(0_0_0/0.9)]',
+              )}
             >
               {redirecting ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <GoogleIcon className="h-[18px] w-[18px]" />}
               {redirecting ? 'Redirecting to Google…' : 'Continue with Google'}
             </button>
             {!googleReady && providers.isFetched && (
               <p id="google-unavailable" className="mt-2 text-center text-2xs text-faint">
-                Google sign-in isn’t configured on this server yet.
+                Google sign-in requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.
               </p>
             )}
 
@@ -255,7 +264,7 @@ export function LoginPage() {
                   id="email"
                   type="email"
                   autoComplete="username"
-                  placeholder="name@university.edu"
+                  placeholder="author@university.edu"
                   {...form.register('email')}
                   aria-invalid={!!form.formState.errors.email}
                 />
@@ -278,37 +287,6 @@ export function LoginPage() {
               <Lock className="h-3 w-3" /> Only pre-registered accounts · roles are assigned by the examination office
             </p>
           </div>
-
-          {demo.data?.enabled && (
-            <div className="mt-6 rounded-2xl border border-dashed border-warn/35 bg-warn/[0.04] p-4">
-              <div className="flex items-center gap-2 text-[13px] font-semibold text-warn">
-                <KeyRound className="h-4 w-4" /> Development demo accounts
-              </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted">
-                Seeded for local evaluation only and disabled in production. Password for all:{' '}
-                <code className="rounded bg-canvas/70 px-1 py-0.5 font-mono text-ink">{demo.data.password}</code>
-              </p>
-              <div className="mt-3 space-y-1.5">
-                {demo.data.accounts?.map((a) => (
-                  <button
-                    key={a.email}
-                    type="button"
-                    onClick={() => {
-                      form.setValue('email', a.email, { shouldValidate: true });
-                      form.setValue('password', demo.data!.password!, { shouldValidate: true });
-                    }}
-                    className="sheen group relative flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-surface/70 px-3 py-2.5 text-left text-xs transition-all duration-300 hover:border-accent/40 hover:bg-raised/70"
-                  >
-                    <span className="font-medium text-ink">{a.label}</span>
-                    <span className="flex items-center gap-1.5 font-mono text-faint transition-colors group-hover:text-muted">
-                      {a.email}
-                      <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </section>
     </div>

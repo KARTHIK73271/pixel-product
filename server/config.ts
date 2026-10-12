@@ -22,11 +22,27 @@ function defaultDataDir() {
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProd = nodeEnv === 'production';
 
+/**
+ * Express `trust proxy`. Behind a platform load balancer (Render, Railway, Fly, Koyeb) the real
+ * client address arrives in X-Forwarded-For and the original scheme in X-Forwarded-Proto; without
+ * this every request looks like it came from the proxy, which would collapse the per-IP sign-in
+ * rate limits onto a single bucket. `loopback` stays the local default so a dev machine cannot be
+ * spoofed by a forged header.
+ */
+function trustProxySetting(): number | string | boolean {
+  const raw = process.env.TRUST_PROXY?.trim();
+  if (!raw) return isProd ? 1 : 'loopback';
+  if (raw === 'false') return false;
+  if (raw === 'true') return true;
+  return /^\d+$/.test(raw) ? Number(raw) : raw;
+}
+
 export const config = {
   nodeEnv,
   isProd,
   isTest: nodeEnv === 'test',
   port: Number(process.env.PORT ?? 3001),
+  trustProxy: trustProxySetting(),
   /** When set, connect to an external PostgreSQL server instead of embedded PGlite. */
   databaseUrl: process.env.DATABASE_URL || undefined,
   pgliteDataDir: process.env.PGLITE_DATA_DIR ? path.resolve(process.env.PGLITE_DATA_DIR) : defaultDataDir(),

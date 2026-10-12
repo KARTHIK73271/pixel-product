@@ -76,11 +76,32 @@ export function createPgliteDatabase(dataDir?: string, opts: { loadDataDir?: Blo
   };
 }
 
+/**
+ * Managed Postgres (Neon, Supabase, Render, Railway) refuses plaintext connections, while a
+ * local server usually does not speak TLS at all — so the default is decided by the host.
+ * Verification stays on; `DATABASE_SSL=insecure` is the documented escape hatch for providers
+ * that present a self-signed intermediate, and `off` disables TLS entirely.
+ */
+function sslFor(connectionString: string): pg.PoolConfig['ssl'] {
+  const mode = process.env.DATABASE_SSL?.trim().toLowerCase();
+  if (mode === 'off' || mode === 'false') return undefined;
+  if (mode === 'insecure') return { rejectUnauthorized: false };
+  let host = '';
+  try {
+    host = new URL(connectionString).hostname;
+  } catch {
+    /* let pg report a malformed URL itself */
+  }
+  const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  if (isLocal && mode !== 'on' && mode !== 'true') return undefined;
+  return { rejectUnauthorized: true };
+}
+
 export function createPostgresDatabase(connectionString: string): Database {
   pg.types.setTypeParser(1082, identity); // date
   pg.types.setTypeParser(20, toNumber); // int8
   pg.types.setTypeParser(1700, toNumber); // numeric
-  const pool = new pg.Pool({ connectionString, max: 10 });
+  const pool = new pg.Pool({ connectionString, max: 10, ssl: sslFor(connectionString) });
 
   async function run<T>(fn: (q: Queryable) => Promise<T>, userId?: string): Promise<T> {
     const client = await pool.connect();

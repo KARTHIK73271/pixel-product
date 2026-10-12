@@ -26,6 +26,7 @@ import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } fr
 import { BreadcrumbProvider, Breadcrumbs } from './breadcrumbs';
 import { CommandSearch } from './CommandSearch';
 import { Notifications } from './Notifications';
+import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   to: string;
@@ -217,6 +218,7 @@ export function AppShell() {
             <div className="ml-auto flex flex-1 items-center justify-end gap-2">
               <CommandSearch />
               <LiveDot status={live} />
+              <ThemeToggle className="hidden sm:inline-flex" />
               <Notifications />
               <Menu>
                 <MenuTrigger asChild>

@@ -19,9 +19,10 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 export interface GoogleConfig {
   clientId: string;
   clientSecret: string;
-  redirectUri: string;
-  /** Origin of the web app, used for the post-login redirect (defaults to the redirect URI's origin). */
-  appUrl: string;
+  /** Pinned callback URL. When unset, it is derived per request from the address the app is reached on. */
+  redirectUri: string | null;
+  /** Pinned app origin for post-login redirects (defaults to the callback URL's origin). */
+  appUrl: string | null;
   allowedDomains: string[];
   authUrl: string;
   tokenUrl: string;
@@ -33,13 +34,13 @@ export interface GoogleConfig {
 export function googleConfig(): GoogleConfig | null {
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim();
-  if (!clientId || !clientSecret || !redirectUri) return null;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI?.trim() || null;
+  if (!clientId || !clientSecret) return null;
   return {
     clientId,
     clientSecret,
     redirectUri,
-    appUrl: (process.env.APP_URL?.trim() || new URL(redirectUri).origin).replace(/\/$/, ''),
+    appUrl: process.env.APP_URL?.trim() ? process.env.APP_URL.trim().replace(/\/$/, '') : null,
     allowedDomains: (process.env.GOOGLE_ALLOWED_DOMAINS ?? '')
       .split(',')
       .map((d) => d.trim().toLowerCase())
@@ -55,7 +56,22 @@ export function googleConfig(): GoogleConfig | null {
 const b64url = (buf: Buffer) => buf.toString('base64url');
 export const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
-export function newAuthorization(cfg: GoogleConfig) {
+/**
+ * The callback URL for this request: the pinned GOOGLE_REDIRECT_URI, or `<scheme>://<host>/api/auth/google/callback`
+ * of the address the browser used (scheme/host honour `trust proxy`). A spoofed Host header gains nothing:
+ * Google only redirects to callback URLs registered for the client in Google Cloud Console.
+ */
+export function redirectUriFor(cfg: GoogleConfig, req: { protocol: string; get(name: string): string | undefined }) {
+  return cfg.redirectUri ?? `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+}
+
+/** Where to send the browser after sign-in: pinned APP_URL, else the callback URL's origin. */
+export function appUrlFor(cfg: GoogleConfig, redirectUri: string) {
+  return cfg.appUrl ?? new URL(redirectUri).origin;
+}
+
+export function newAuthorization(cfg: GoogleConfig, redirectUri?: string) {
+  const targetRedirectUri = redirectUri || cfg.redirectUri || '';
   const state = b64url(randomBytes(32));
   const nonce = b64url(randomBytes(32));
   const codeVerifier = b64url(randomBytes(48)); // 64 chars, within RFC 7636's 43–128
@@ -63,7 +79,7 @@ export function newAuthorization(cfg: GoogleConfig) {
   const url = new URL(cfg.authUrl);
   url.search = new URLSearchParams({
     client_id: cfg.clientId,
-    redirect_uri: cfg.redirectUri,
+    redirect_uri: targetRedirectUri,
     response_type: 'code',
     scope: 'openid email profile',
     state,
@@ -87,7 +103,8 @@ export class OAuthError extends Error {
   }
 }
 
-export async function exchangeCode(cfg: GoogleConfig, code: string, codeVerifier: string): Promise<string> {
+export async function exchangeCode(cfg: GoogleConfig, code: string, codeVerifier: string, redirectUri?: string): Promise<string> {
+  const targetRedirectUri = redirectUri || cfg.redirectUri || '';
   let res: Response;
   try {
     res = await fetch(cfg.tokenUrl, {
@@ -97,7 +114,7 @@ export async function exchangeCode(cfg: GoogleConfig, code: string, codeVerifier
         code,
         client_id: cfg.clientId,
         client_secret: cfg.clientSecret,
-        redirect_uri: cfg.redirectUri,
+        redirect_uri: targetRedirectUri,
         grant_type: 'authorization_code',
         code_verifier: codeVerifier,
       }),

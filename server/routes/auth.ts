@@ -95,8 +95,10 @@ export function authRoutes(db: Database) {
 
   r.use('/google', googleRoutes(db));
 
+  // `public` distinguishes a disposable public evaluation instance from a developer's laptop,
+  // so the login page can label the credentials honestly instead of claiming they are dev-only.
   r.get('/demo', (_req, res) => {
-    res.json(config.demoMode ? { enabled: true, password: DEMO_PASSWORD, accounts: DEMO_ACCOUNTS } : { enabled: false });
+    res.json(config.demoMode ? { enabled: true, public: config.isProd, password: DEMO_PASSWORD, accounts: DEMO_ACCOUNTS } : { enabled: false });
   });
 
   return r;

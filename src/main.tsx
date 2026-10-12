@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import App from './App';
 import { ApiError } from './lib/api';
 import { AuthProvider } from './lib/auth';
+import { ThemeProvider, useTheme } from './lib/theme';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -23,23 +24,33 @@ window.addEventListener('data:changed', () => {
   void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
 });
 
+/** Toasts are portalled outside the app tree, so they need the theme handed to them. */
+function AppToaster() {
+  const { resolved } = useTheme();
+  return (
+    <Toaster
+      theme={resolved}
+      position="bottom-right"
+      toastOptions={{
+        classNames: {
+          toast: '!bg-surface !border !border-line !text-ink !text-[13px]',
+          description: '!text-muted',
+        },
+      }}
+    />
+  );
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthProvider>
-          <App />
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              classNames: {
-                toast: '!bg-surface !border !border-line !text-ink !text-[13px]',
-                description: '!text-muted',
-              },
-            }}
-          />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <App />
+            <AppToaster />
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

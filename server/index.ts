@@ -6,6 +6,30 @@ import { migrate } from './db/migrate';
 const db = await openDatabase();
 await migrate(db, (m) => console.log(`[db] ${m}`));
 
+/**
+ * First-boot demo seeding for a disposable public instance.
+ *
+ * Deliberately opt-in (ALLOW_DEMO_SEED) and only ever on a database with no users, so a redeploy
+ * never touches data an evaluator has already entered. A seeding failure is logged rather than
+ * thrown: a crash-looping web service is a worse outcome than one that starts empty and can be
+ * seeded by hand.
+ */
+if (process.env.ALLOW_DEMO_SEED === 'true') {
+  try {
+    const { rows } = await db.system((q) => q.query<{ n: number }>('select count(*)::int as n from users'));
+    if (rows[0].n > 0) {
+      console.log('[seed] database already has users — leaving it untouched');
+    } else {
+      const { seedDatabase, runSeedSelfCheck } = await import('./seed/seed');
+      const seed = await seedDatabase(db, (m) => console.log(`[seed] ${m}`));
+      await runSeedSelfCheck(db, seed, (m) => console.log(`[seed] ${m}`));
+      console.log('[seed] demo data loaded on first boot');
+    }
+  } catch (err) {
+    console.error(`[seed] first-boot seeding failed: ${(err as Error).message}`);
+  }
+}
+
 // Embedded mode: refresh the last-known-good snapshot after startup and periodically after writes.
 const snapshot = (db as { snapshot?: () => Promise<void> }).snapshot;
 let dirty = false;

@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.github
+.data
+.env
+.env.*
+!.env.example
+PUBLIC-ACCESS-CREDENTIALS.txt
+test-results
+playwright-report
+e2e
+tests
+*.log
+.vscode
+.idea
+.claude
