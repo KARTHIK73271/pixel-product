@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.data/
+*.lock
+!package-lock.json
+.env
+test-results/
+playwright-report/
+*.log
