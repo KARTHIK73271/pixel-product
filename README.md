@@ -28,7 +28,24 @@ Open **http://localhost:5173** and pick a demo account on the login screen.
 | `npm run build` / `npm start` | type-check + production build; serve API + SPA on `PORT` |
 | `npm test` | unit, service, authorization and persistence tests (Vitest) |
 | `npm run test:e2e` | browser end-to-end tests (Playwright, first run `npx playwright install chromium`) |
+| `npm run user:create -- --email … --name … --role ADMIN` | pre-register a staff account from the server console (e.g. the first admin for Google sign-in) |
 | `npm run typecheck` / `npm run lint` | TypeScript and ESLint |
+
+### Open it on other laptops
+
+**Same Wi-Fi or hotspot (no files needed on the other laptop):**
+
+```bash
+npm run share        # builds the fast production version, then serves app + API on port 8080
+```
+
+It prints two links: `http://localhost:8080` for this laptop and `http://<your-ip>:8080` for everyone else, e.g. `http://10.0.123.204:8080`. Anyone on the same network can open that link in a browser. Demo accounts are shown on the login page. Keep the window open; Ctrl+C stops sharing.
+
+* Only one server can use the database at a time, so stop `npm run dev` before `npm run share`, and the other way round.
+* If the link doesn't open on the other laptop, the network is probably blocking device-to-device traffic (common on campus Wi-Fi). Turn on a phone hotspot and connect both laptops to it. Windows may also ask once to allow Node.js through the firewall; choose **Allow**.
+* Google sign-in only works on `localhost` or an HTTPS domain, not on a raw network address. Use email + password there.
+
+**Run the project on another laptop (copy the folder):** copy the project folder without `node_modules`, `dist` or `.data`, install Node.js 20+ from <https://nodejs.org>, then double-click **`START-APP.bat`** (or run `npm install` then `npm run share`). The first run installs packages and loads the demo data; later runs keep the data.
 
 ### Demo accounts (development only)
 
@@ -101,9 +118,9 @@ tests/ e2e/        Vitest suites · Playwright scenarios
 | `students` | register linked 1:1 to a student login; unique roll number |
 | `rooms` | unique room number, `capacity` 1–500, status `AVAILABLE/MAINTENANCE/RETIRED` |
 | `examinations` | course, type, cohort, date, session, time, `status DRAFT → ALLOCATED → PUBLISHED`, `is_active`; one active exam per course + type + section |
-| `exam_students` | eligibility; **a student sits ≤ 1 active exam per date+session** |
+| `exam_students` | eligibility; **a student sits ≤ 1 active exam per date+session**; **a branch-specific exam (e.g. CSE) admits only students of that branch**: enforced on enrolment, on changing the exam's branch, and on moving a student between branches |
 | `exam_rooms` | room bookings; **a room hosts ≤ 1 active exam per date+session**; only `AVAILABLE` rooms |
-| `incharge_assignments` | one in-charge per exam room; **an in-charge supervises ≤ 1 room per date+session** |
+| `incharge_assignments` | **up to two faculty in-charges per exam hall** (trigger-enforced), both with full attendance rights; **a faculty member supervises ≤ 1 hall per date+session** |
 | `allocations` | `unique(exam, student)`, `unique(exam, room, seat)`, seat must be ≤ room capacity, student must be eligible, room must be booked |
 | `attendance_records` | one row per **marked** student (`PRESENT`/`ABSENT`); **unmarked = no row, never absent** |
 | `attendance_submissions` | per exam room: `IN_PROGRESS → FINALIZED` only when every seated student is marked; `FINALIZED → IN_PROGRESS` only by an admin with a recorded reason |
@@ -152,6 +169,69 @@ All figures are computed live, scoped to **active** examinations matching the fi
 
 ---
 
+## Google Sign-In setup
+
+The login page offers **Continue with Google** next to email + password. The project doesn't use Supabase, so Google is integrated into the existing server-side session system as a standard **OAuth 2.0 Authorization Code flow with PKCE + OpenID Connect**. The button stays visible but disabled ("not configured") until the three `GOOGLE_*` variables are set.
+
+### 1. Google Cloud Console
+
+1. Open <https://console.cloud.google.com/>, then create or select a project (e.g. *Exam Section*).
+2. **APIs & Services → OAuth consent screen** (shown as *Google Auth Platform → Branding / Audience* in newer consoles):
+   * **User type / Audience:** choose **Internal** if your university uses Google Workspace (only your organisation's accounts can even reach the consent screen). Otherwise choose **External**: while the app is in *Testing*, add every tester under **Test users**; to go live, click *Publish app*.
+   * Fill in the app name, support email, and developer contact. For production, add your domain under **Authorized domains**.
+   * **Scopes:** `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. These are non-sensitive, so Google's app verification isn't required.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application**:
+   * **Authorized JavaScript origins:** `http://localhost:5173` (dev), `http://localhost:3001` (local `npm start`), `https://exams.your-university.edu` (production).
+   * **Authorized redirect URIs**, which must match `GOOGLE_REDIRECT_URI` exactly:
+     * `http://localhost:5173/api/auth/google/callback`: dev (`npm run dev`; Vite proxies `/api` to the API, so cookies stay on one origin)
+     * `http://localhost:3001/api/auth/google/callback`: local production build (`npm start`)
+     * `https://exams.your-university.edu/api/auth/google/callback`: production (HTTPS is required for `Secure` cookies)
+4. Copy the **Client ID** and **Client secret**.
+
+### 2. Server configuration (`.env`, never committed)
+
+```bash
+GOOGLE_CLIENT_ID=1234567890-abc.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...            # server only; never sent to the browser
+GOOGLE_REDIRECT_URI=http://localhost:5173/api/auth/google/callback
+# APP_URL=http://localhost:5173           # optional; defaults to the redirect URI's origin
+# GOOGLE_ALLOWED_DOMAINS=university.edu   # optional; restricts sign-in to these Google domains
+```
+
+Restart the API (`npm run dev`). `GET /api/auth/providers` should then return `{"password":true,"google":true}` and the button becomes active.
+
+### 3. Pre-register who may sign in
+
+Google proves **who** someone is; the database decides **whether** they may enter and **what role** they have. Nobody is created automatically.
+
+* **First admin** (from the server console): `npm run user:create -- --email you@university.edu --name "Dr. Your Name" --role ADMIN`. Without `--password` the account is Google-only.
+* **Admins / in-charges:** *Staff accounts → New account*. Use the person's Google email; the password is optional (blank = Google-only).
+* **Students:** set the student's Google email in *Students*, then click **Enable sign-in**.
+* The seeded demo accounts use `@exam.local` addresses, which aren't real Google accounts. To try Google with your own account, pre-register your Gmail/Workspace address as shown above.
+
+### How the flow works and what is enforced
+
+1. **Continue with Google** → `GET /api/auth/google/start`. The server creates a random `state`, an OIDC `nonce`, and a PKCE verifier, stores them server-side for 10 minutes, binds `state` to the browser in an `httpOnly` `SameSite=Lax` cookie, and redirects to Google (`prompt=select_account`).
+2. Google → `GET /api/auth/google/callback?code&state`. The server requires the state cookie to match, **consumes the transaction once** (no replay), exchanges the code using the client secret and PKCE verifier, and verifies the **ID token signature against Google's published keys (RS256)**, plus issuer, audience (our client ID), expiry, nonce, and `email_verified`.
+3. The Google identity is matched to an **active, pre-registered** account by verified email, then **bound to the Google subject id** (`sub`). A different Google account later presenting the same email is refused until an admin clicks **Unlink Google**.
+4. The normal session cookie is issued and the browser goes to the role's dashboard (`/dashboard`, `/duties` or `/my`), or back to the page that required sign-in. Only same-app paths are accepted, so there are no open redirects. **The role comes only from the `users` table**; anything the client sends (e.g. `?role=ADMIN`) is ignored.
+5. Google tokens are discarded after verification; only `sub` is stored. Successful and refused sign-ins are written to the audit timeline (`USER_SIGNED_IN`, `SIGN_IN_REJECTED`).
+
+The login page explains every outcome: cancelled, not registered (shows the email), disabled, different Google account, unverified email, wrong domain, expired attempt, and not configured. After a session expires mid-use, the user lands on the login page with *Session expired*. Sign-out ends the server session and signs out other open tabs.
+
+### Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| Google shows `redirect_uri_mismatch` | `GOOGLE_REDIRECT_URI` must equal an Authorized redirect URI exactly (scheme, host, port, path, no trailing slash). |
+| "Access blocked: app has not completed verification" / user not allowed | External app in *Testing*: add the account under **Test users**, or publish the app. |
+| "Account not registered" | No active account has that exact email. Pre-register it (case doesn't matter). |
+| "Different Google account" | The account was first linked to another Google identity. An admin can **Unlink Google** in Staff accounts. |
+| Button disabled ("not configured") | One of `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` is missing; restart after editing `.env`. |
+| Signed in but immediately signed out in production | Serve over HTTPS (session cookies are `Secure` in production) and set `APP_URL` to the public origin. |
+
+---
+
 ## Security notes
 
 * Passwords use scrypt (N=16384) with a per-hash salt. Unknown users still incur a hash computation, to avoid timing enumeration. Login is rate-limited per IP + email.
@@ -166,16 +246,21 @@ All figures are computed live, scoped to **active** examinations matching the fi
 ## Tests
 
 ```bash
-npm test            # Vitest, 50 tests
-npm run test:e2e    # Playwright, 5 scenarios against a production build + fresh seeded DB
+npm test            # Vitest, 87 tests
+npm run test:e2e    # Playwright, 11 scenarios against a production build + fresh seeded DB
 ```
+
+Google sign-in tests run against `server/testing/fake-google.ts`, a test-only stand-in for Google's authorize, token, and JWKS endpoints that issues real RS256-signed ID tokens. Everything on our side (state cookie, PKCE, token exchange, signature and claim verification, account matching, sessions) is the production code path. Live Google can't be exercised without your OAuth client. Its public discovery document and signing keys were checked against this configuration, and a token forged with Google's key id was rejected.
 
 | Suite | Covers |
 | --- | --- |
 | `tests/allocator.test.ts` (9) | 120/40-50-60 example, minimum-room optimality vs brute force, insufficient capacity, unavailable rooms, determinism, interleaving, unique in-capacity seats |
 | `tests/workflows.test.ts` (16) | room over-allocation (API + trigger), capacity shrink guard, maintenance room rejection, insufficient-capacity flow + publish acknowledgement, stale-preview rejection, duplicate student allocation, unique seat, **concurrent allocation requests**, slot policies, duplicate exam, incomplete submission rejection, **dashboard updates after changes**, finalized-attendance lock + admin reopen + audit, reallocation preserving attendance, **absentee totals == records**, provisional reports |
 | `tests/security.test.ts` (22) | 401 without session, generic login errors, cookie flags, CSRF header, server validation, disabled accounts, admin-only endpoints, **unassigned-room access**, IDOR on allocation ids, in-charge scoping, **RLS cross-student isolation**, **unpublished allocation privacy**, finalized-only attendance for students, secret/audit protection, un-spoofable audit actor, no identity bleed between concurrent transactions |
+| `tests/google-auth.test.ts` (25) | provider discovery, PKCE/state/nonce redirect, state cookie flags, admin → `/dashboard`, in-charge → `/duties`, student → `/my`, client-supplied role ignored, safe return paths vs open redirects, audit + logout, already-signed-in redirect, unregistered/disabled accounts refused, Google `sub` binding + admin unlink, domain restriction, Google-only staff + student enablement, cancel, login-CSRF state mismatch, replay, expiry, forged signature, wrong audience/issuer, expired token, nonce mismatch, unverified email, tampered code |
+| `tests/faculty-branch.test.ts` (12) | two-faculty halls (visible to both, both can mark, 3rd/duplicate rejected by API and database, swap, unassign, one-hall-per-session still enforced); branch rule (criteria enrolment, API rejection naming the refused students, database trigger, multi-department papers, re-targeting an exam, moving a student) |
 | `tests/persistence.test.ts` (3) | **records survive a full restart** (disk), single-owner directory lock, stale-lock takeover |
+| `e2e/google.spec.ts` (6) | in the browser: Google sign-in for admin, in-charge and student, each landing on their own dashboard and blocked from others (router **and** API 403); reload persistence; already-authenticated redirect; sign-out; unregistered account message; cancel at Google; expired session notice |
 | `e2e/app.spec.ts` (5) | admin dashboard; resolve shortage → minimum-rooms preview → confirm → assign in-charge → publish; student sees the new seat but not drafts; in-charge refused while unmarked → bulk mark → finalize → **persists after reload**; in-charge blocked from admin pages and other rooms |
 
 ---
@@ -188,3 +273,4 @@ npm run test:e2e    # Playwright, 5 scenarios against a production build + fresh
 * **Notifications** are derived live from operational state (alerts, duties, published seats); there is no per-user read/unread state.
 * Attendance can be recorded for any published exam regardless of the clock. The UI warns when the exam is not dated today, since real schedules shift.
 * The login rate limiter is in-memory, per process.
+* **Google Sign-In** needs your own OAuth client (see setup). The automated tests use a local fake of Google's endpoints. The live Google consent screen hasn't been exercised here because no client ID was available, though Google's real discovery document and signing keys were verified against this configuration. Google profile changes (e.g. a renamed account) aren't synced; staff details are managed in the app.

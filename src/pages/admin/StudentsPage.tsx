@@ -17,7 +17,9 @@ import { Checkbox, Field, Input, SearchInput, Select } from '@/components/ui/for
 import { PageHeader } from '@/components/ui/page';
 import { Pagination, Table, TableSkeleton, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { api, qs } from '@/lib/api';
-import { applyServerErrors } from '@/lib/forms';
+import { applyServerErrors, withToast } from '@/lib/forms';
+import { GoogleIcon } from '@/components/GoogleIcon';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import type { Meta, Paged, Student } from '@/lib/types';
 
 type StudentForm = z.input<typeof studentSchema>;
@@ -32,6 +34,7 @@ export function StudentsPage() {
   const [section, setSection] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Student | null | 'new'>(null);
+  const [enableFor, setEnableFor] = useState<Student | null>(null);
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search.trim()), 250);
     return () => clearTimeout(t);
@@ -101,7 +104,9 @@ export function StudentsPage() {
                   <TH>Email</TH>
                   <TH className="text-right">Active exams</TH>
                   <TH>Status</TH>
-                  <TH className="w-10" />
+                  <TH className="text-right">
+                    <span className="sr-only">Actions</span>
+                  </TH>
                 </tr>
               </THead>
               <TBody>
@@ -118,13 +123,30 @@ export function StudentsPage() {
                     <TD>
                       <div className="flex gap-1">
                         {s.isActive ? <Badge tone="ok">Active</Badge> : <Badge>Inactive</Badge>}
-                        {s.hasLogin && <Badge tone="accent">Login</Badge>}
+                        {s.hasLogin && (
+                          <Badge tone={s.googleLinked ? 'ok' : 'accent'} icon={s.googleLinked ? <GoogleIcon className="h-3 w-3" /> : undefined}>
+                            {s.googleLinked ? 'Google linked' : 'Can sign in'}
+                          </Badge>
+                        )}
                       </div>
                     </TD>
                     <TD>
-                      <Button variant="ghost" size="icon" onClick={() => setEditing(s)} aria-label={`Edit ${s.rollNo}`}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        {!s.hasLogin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!s.email || !s.isActive}
+                            title={!s.email ? 'Add the student’s Google email first' : !s.isActive ? 'Student is inactive' : 'Allow this student to sign in with Google'}
+                            onClick={() => setEnableFor(s)}
+                          >
+                            <GoogleIcon className="h-3.5 w-3.5" /> Enable sign-in
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => setEditing(s)} aria-label={`Edit ${s.rollNo}`}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TD>
                   </TR>
                 ))}
@@ -135,6 +157,14 @@ export function StudentsPage() {
         )}
       </Card>
       <StudentDialog student={editing} onClose={() => setEditing(null)} meta={meta.data} />
+      <ConfirmDialog
+        open={!!enableFor}
+        onOpenChange={(v) => !v && setEnableFor(null)}
+        title={`Enable sign-in for ${enableFor?.fullName ?? ''}?`}
+        description={`${enableFor?.rollNo} will be able to sign in with the Google account ${enableFor?.email}. Students only ever see their own published seats.`}
+        confirmLabel="Enable sign-in"
+        onConfirm={() => withToast(() => api.post(`/students/${enableFor!.id}/login`), 'Student can now sign in with Google')}
+      />
     </div>
   );
 }

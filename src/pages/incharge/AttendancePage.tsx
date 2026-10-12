@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { EXAM_TYPE_LABEL } from '@shared/schemas';
+import { Classroom3D } from '@/components/Classroom3D';
 import { useBreadcrumbs } from '@/components/layout/breadcrumbs';
 import { SubmissionBadge } from '@/components/ui/badges';
 import { Button, LinkButton } from '@/components/ui/button';
@@ -33,6 +34,7 @@ export function AttendancePage() {
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
+  const [showRoom, setShowRoom] = useState(true);
   const isAdmin = user?.role === 'ADMIN';
   useBreadcrumbs(
     isAdmin
@@ -108,7 +110,7 @@ export function AttendancePage() {
           <>
             <SubmissionBadge status={s.submissionStatus} overdue={s.examDate < todayLocalIso() && !finalized} />
             <span className="text-xs text-muted">
-              {fmtDate(s.examDate, 'EEE dd MMM yyyy')} · {sessionLabel(s.session)} {s.startTime} · {s.block} · In-charge: {s.inchargeName ?? 'unassigned'}
+              {fmtDate(s.examDate, 'EEE dd MMM yyyy')} · {sessionLabel(s.session)} {s.startTime} · {s.block} · Faculty: {s.inchargeName ?? 'unassigned'}
             </span>
           </>
         }
@@ -167,6 +169,34 @@ export function AttendancePage() {
           {marked}/{allocated} marked
         </span>
       </div>
+
+      {/* live 3D view of the hall: desks change colour as candidates are marked */}
+      <Card className="mb-5 p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Room {s.roomNo} · live view</p>
+          <Button size="sm" variant="ghost" onClick={() => setShowRoom((v) => !v)} aria-expanded={showRoom}>
+            {showRoom ? 'Hide room' : 'Show room'}
+          </Button>
+        </div>
+        {showRoom && (
+          <Classroom3D
+            capacity={s.capacity}
+            roomNo={s.roomNo}
+            height={380}
+            caption={`Room ${s.roomNo} · ${present} present · ${absent} absent · ${unmarked} unmarked`}
+            seats={s.students.map((st) => ({
+              no: st.seatNo,
+              color: st.status === 'PRESENT' ? '#c98500' : st.status === 'ABSENT' ? '#9085e9' : '#4a6b60',
+              detail: `${st.rollNo} · ${st.fullName} · ${st.status === 'PRESENT' ? 'Present' : st.status === 'ABSENT' ? 'Absent' : 'Not marked yet'}`,
+            }))}
+            legend={[
+              { label: 'Present', color: '#c98500' },
+              { label: 'Absent', color: '#9085e9' },
+              { label: 'Seated, not marked', color: '#4a6b60' },
+            ]}
+          />
+        )}
+      </Card>
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">

@@ -31,7 +31,7 @@ export function Notifications() {
           <Bell className="h-4 w-4" />
           {items.length > 0 && (
             <span
-              className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white ring-2 ring-canvas ${urgent ? 'bg-bad shadow-[0_0_10px_rgb(var(--bad)/0.8)]' : 'bg-accent shadow-[0_0_10px_rgb(var(--accent)/0.8)]'}`}
+              className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold ring-2 ring-canvas ${urgent ? 'bg-bad text-[#3b0a0a] shadow-[0_0_10px_rgb(var(--bad)/0.8)]' : 'bg-accent text-on-accent shadow-[0_0_10px_rgb(var(--accent)/0.8)]'}`}
             >
               {items.length > 9 ? '9+' : items.length}
             </span>

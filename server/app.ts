@@ -15,9 +15,10 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction) {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'same-origin',
-    'Cross-Origin-Opener-Policy': 'same-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   });
+  // Browsers ignore (and warn about) COOP on plain-http LAN addresses, so only send it over HTTPS.
+  if (config.cookieSecure) res.set('Cross-Origin-Opener-Policy', 'same-origin');
   if (config.isProd) {
     res.set(
       'Content-Security-Policy',

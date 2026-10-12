@@ -21,6 +21,7 @@ import { AllocationTab } from './exam/AllocationTab';
 import { ExamAttendanceTab } from './exam/AttendanceTab';
 import { ExamAuditTab } from './exam/AuditTab';
 import { PublishDialog } from './exam/PublishDialog';
+import { ReplayTab } from './exam/ReplayTab';
 import { RoomsTab } from './exam/RoomsTab';
 import { StudentsTab } from './exam/StudentsTab';
 
@@ -118,6 +119,7 @@ export function ExamDetailPage() {
           { value: 'students', label: 'Eligible students', count: exam.eligibleCount },
           { value: 'rooms', label: 'Rooms & in-charges', count: rooms.length },
           { value: 'allocation', label: 'Seating allocation' },
+          { value: 'replay', label: 'Allocation replay' },
           { value: 'attendance', label: 'Attendance', count: published ? `${exam.finalizedRooms}/${rooms.filter((r) => r.allocated > 0).length}` : undefined },
           { value: 'audit', label: 'Audit' },
         ]}
@@ -133,6 +135,9 @@ export function ExamDetailPage() {
         </TabPanel>
         <TabPanel value="allocation">
           <AllocationTab detail={q.data} onPublish={() => setPublishOpen(true)} />
+        </TabPanel>
+        <TabPanel value="replay">
+          <ReplayTab detail={q.data} />
         </TabPanel>
         <TabPanel value="attendance">
           <ExamAttendanceTab detail={q.data} />
@@ -180,7 +185,12 @@ function Overview({ detail, onTab }: { detail: ExamDetail; onTab: (t: string) =>
     { label: 'Enrol eligible students', done: exam.eligibleCount > 0, tab: 'students', meta: `${exam.eligibleCount} enrolled` },
     { label: 'Assign rooms', done: rooms.length > 0 && exam.capacity >= exam.eligibleCount, tab: 'rooms', meta: `${rooms.length} rooms · ${exam.capacity} seats` },
     { label: 'Generate & confirm seating', done: exam.status !== 'DRAFT', tab: 'allocation', meta: `${exam.allocatedCount}/${exam.eligibleCount} seated` },
-    { label: 'Assign room in-charges', done: occupied.length > 0 && occupied.every((r) => r.inchargeId), tab: 'rooms', meta: `${occupied.filter((r) => r.inchargeId).length}/${occupied.length} rooms covered` },
+    {
+      label: 'Assign hall faculty (1–2 per hall)',
+      done: occupied.length > 0 && occupied.every((r) => r.inchargeIds.length > 0),
+      tab: 'rooms',
+      meta: `${occupied.filter((r) => r.inchargeIds.length > 0).length}/${occupied.length} halls covered`,
+    },
     { label: 'Publish to students', done: exam.status === 'PUBLISHED', tab: 'allocation', meta: exam.publishedAt ? `Published ${fmtDateTime(exam.publishedAt)}` : 'Not published' },
     {
       label: 'Record & finalize attendance',

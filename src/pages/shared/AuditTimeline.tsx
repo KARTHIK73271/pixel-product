@@ -5,7 +5,10 @@ import {
   DoorOpen,
   Eye,
   EyeOff,
+  KeyRound,
   LogIn,
+  ShieldAlert,
+  Unlink,
   PencilLine,
   Power,
   RotateCcw,
@@ -37,6 +40,9 @@ const ICONS: Record<string, { icon: LucideIcon; tone: string }> = {
   ATTENDANCE_CORRECTED: { icon: PencilLine, tone: 'text-warn' },
   ATTENDANCE_REOPENED: { icon: RotateCcw, tone: 'text-bad' },
   USER_SIGNED_IN: { icon: LogIn, tone: 'text-faint' },
+  SIGN_IN_REJECTED: { icon: ShieldAlert, tone: 'text-bad' },
+  GOOGLE_UNLINKED: { icon: Unlink, tone: 'text-warn' },
+  STUDENT_LOGIN_ENABLED: { icon: KeyRound, tone: 'text-accent' },
 };
 
 export function actionLabel(action: string) {

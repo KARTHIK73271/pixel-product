@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 const control =
   'w-full rounded-lg border border-line bg-canvas/70 px-3 text-sm text-ink placeholder:text-faint ' +
-  'shadow-[inset_0_1px_2px_rgb(2_4_10/0.5)] transition-all duration-200 ' +
+  'shadow-[inset_0_1px_2px_rgb(1_14_10/0.5)] transition-all duration-200 ' +
   'hover:border-line-strong ' +
   'focus:border-accent/70 focus:outline-none focus:ring-[3px] focus:ring-accent/18 focus:bg-canvas/90 ' +
   'disabled:opacity-60 disabled:cursor-not-allowed ' +

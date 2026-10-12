@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { DoorOpen, Pencil, Plus } from 'lucide-react';
+import { Box, DoorOpen, Pencil, Plus } from 'lucide-react';
+import { Classroom3D } from '@/components/Classroom3D';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useSearchParams } from 'react-router-dom';
@@ -29,6 +30,7 @@ export function RoomsPage() {
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'roomNo', dir: 'asc' });
   const [editing, setEditing] = useState<Room | null | 'new'>(null);
+  const [viewing, setViewing] = useState<Room | null>(null);
   const q = useQuery({ queryKey: ['rooms', status], queryFn: () => api.get<Room[]>(`/rooms${qs({ status })}`) });
 
   const rows = useMemo(() => {
@@ -121,9 +123,14 @@ export function RoomsPage() {
                     <RoomStatusBadge status={r.status} />
                   </TD>
                   <TD>
-                    <Button variant="ghost" size="icon" onClick={() => setEditing(r)} aria-label={`Edit ${r.roomNo}`}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setViewing(r)} aria-label={`3D view of ${r.roomNo}`}>
+                        <Box className="h-3.5 w-3.5" /> 3D
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setEditing(r)} aria-label={`Edit ${r.roomNo}`}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TD>
                 </TR>
               ))}
@@ -133,6 +140,22 @@ export function RoomsPage() {
       </Card>
       <p className="mt-3 text-xs text-faint">Peak allocated = the largest number of seats allocated in this room in any single upcoming date and session.</p>
       <RoomDialog room={editing} onClose={() => setEditing(null)} />
+      <Dialog
+        open={!!viewing}
+        onOpenChange={(v) => !v && setViewing(null)}
+        size="xl"
+        title={viewing ? `Room ${viewing.roomNo} · ${viewing.block}` : ''}
+        description={viewing ? `${viewing.capacity} desks${viewing.floor !== null ? ` · floor ${viewing.floor}` : ''} · ${viewing.status.toLowerCase()}` : undefined}
+      >
+        {viewing && (
+          <Classroom3D
+            capacity={viewing.capacity}
+            roomNo={viewing.roomNo}
+            seats={[]}
+            caption={`Room ${viewing.roomNo} layout · ${viewing.capacity} desks · peak upcoming load ${viewing.allocated}/${viewing.capacity}`}
+          />
+        )}
+      </Dialog>
     </div>
   );
 }

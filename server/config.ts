@@ -34,5 +34,10 @@ export const config = {
   cookieName: 'ses_sid',
   cookieSecure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : isProd,
   /** Demo mode shows seeded demo credentials on the login screen. Never enable in production. */
-  demoMode: process.env.DEMO_MODE ? process.env.DEMO_MODE === 'true' && !isProd : !isProd,
+  // In production only an explicit disposable demo (ALLOW_DEMO_SEED + DEMO_MODE, set by `npm run share`) shows them.
+  demoMode: isProd
+    ? process.env.DEMO_MODE === 'true' && process.env.ALLOW_DEMO_SEED === 'true'
+    : process.env.DEMO_MODE
+      ? process.env.DEMO_MODE === 'true'
+      : true,
 };

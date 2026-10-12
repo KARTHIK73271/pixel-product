@@ -165,7 +165,11 @@ export function ExamFormDialog({
         <Field label="Duration (minutes)" error={err.durationMinutes?.message}>
           <Input type="number" min={30} max={300} step={15} {...form.register('durationMinutes', { valueAsNumber: true })} aria-invalid={!!err.durationMinutes} />
         </Field>
-        <Field label="Department" hint="Leave as “All” for a multi-department paper" error={err.departmentId?.message}>
+        <Field
+          label="Branch (department)"
+          hint="Only students of this branch can be enrolled. Choose “All departments” for a common paper."
+          error={err.departmentId?.message}
+        >
           <Select {...form.register('departmentId')}>
             <option value="">All departments</option>
             {meta.data?.departments.map((d) => (

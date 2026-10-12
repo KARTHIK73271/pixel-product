@@ -212,7 +212,25 @@ export function apiRoutes() {
     }),
   );
 
+  r.post(
+    '/students/:id/login',
+    admin,
+    asyncHandler(async (req, res) => {
+      const id = idParam(req);
+      res.status(201).json(await ctxOf(req).tx((q) => catalog.enableStudentLogin(q, id)));
+    }),
+  );
+
   r.get('/users', admin, asyncHandler(async (req, res) => res.json(await ctxOf(req).tx(catalog.listStaff))));
+  r.post(
+    '/users/:id/unlink-google',
+    admin,
+    asyncHandler(async (req, res) => {
+      const id = idParam(req);
+      await ctxOf(req).tx((q) => catalog.unlinkGoogle(q, id));
+      res.json({ ok: true });
+    }),
+  );
   r.post(
     '/users',
     admin,

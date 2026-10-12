@@ -54,8 +54,10 @@ test('admin resolves a capacity shortage, allocates with minimum rooms and publi
 
   // in-charge for the occupied room, then publish through the checklist
   await page.getByRole('tab', { name: /Rooms & in-charges/ }).click();
-  await page.getByLabel('In-charge for C-301').selectOption({ label: 'Mr. Sanjay Verma' });
-  await expect(page.getByText('In-charge assigned')).toBeVisible();
+  await page.getByLabel('Faculty 1 for C-301').selectOption({ label: 'Mr. Sanjay Verma' });
+  await expect(page.getByText('Faculty assigned')).toBeVisible();
+  await page.getByLabel('Faculty 2 for C-301').selectOption({ label: 'Dr. Priya Raman' });
+  await expect(page.getByText('Two faculty assigned to C-301')).toBeVisible();
   await page.getByRole('button', { name: /Publish seating/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Publish' }).click();
   await expect(page.getByText('Seating published to students')).toBeVisible();

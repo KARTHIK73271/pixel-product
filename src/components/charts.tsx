@@ -2,19 +2,20 @@ import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Toolt
 import type { AdminDashboardData } from '@/lib/types';
 import { fmtPct } from '@/lib/utils';
 
-// Series colors validated for colour-vision-deficiency separation on the dark surface.
+// Series colors validated for colour-vision-deficiency separation on the Emerald Ink surface
+// (#062E24): gold vs violet, ΔE 27 under protan/deutan simulation, both ≥ 3:1 contrast.
 // The gradients below only lighten each hue along its own axis, so the identity of a
 // series never depends on the gradient being perceived.
 const C = {
-  present: '#3987e5',
-  presentLit: '#5ba6f5',
-  absent: '#d95926',
-  absentLit: '#ee7a44',
-  neutral: '#3a4458',
-  neutralLit: '#48546c',
-  grid: '#1e2638',
-  axis: '#7d879b',
-  surface: 'rgb(14 19 33)',
+  present: '#c98500',
+  presentLit: '#e0a336',
+  absent: '#9085e9',
+  absentLit: '#aaa1f2',
+  neutral: '#2c4a40',
+  neutralLit: '#3a5c50',
+  grid: '#0f3d31',
+  axis: '#96a494',
+  surface: 'rgb(6 46 36)',
 };
 
 const axisProps = { stroke: C.axis, fontSize: 11, tickLine: false, axisLine: false } as const;
@@ -77,7 +78,7 @@ export function RoomUtilizationChart({ data }: { data: UtilRow[] }) {
           <defs>{seriesGradients('util')}</defs>
           <CartesianGrid horizontal={false} stroke={C.grid} />
           <XAxis type="number" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}%`} {...axisProps} />
-          <YAxis type="category" dataKey="roomNo" width={56} {...axisProps} tick={{ fill: '#c3cad8', fontSize: 12 }} />
+          <YAxis type="category" dataKey="roomNo" width={56} {...axisProps} tick={{ fill: '#d0c5ad', fontSize: 12 }} />
           <ReferenceLine x={100} stroke={C.axis} strokeDasharray="3 3" />
           <Tooltip
             cursor={{ fill: 'rgb(255 255 255 / 0.04)' }}
@@ -122,7 +123,7 @@ export function AttendanceCompletionChart({ data }: { data: AttRow[] }) {
             <defs>{seriesGradients('att')}</defs>
             <CartesianGrid horizontal={false} stroke={C.grid} />
             <XAxis type="number" allowDecimals={false} {...axisProps} />
-            <YAxis type="category" dataKey="label" width={56} {...axisProps} tick={{ fill: '#c3cad8', fontSize: 12 }} />
+            <YAxis type="category" dataKey="label" width={56} {...axisProps} tick={{ fill: '#d0c5ad', fontSize: 12 }} />
             <Tooltip
               cursor={{ fill: 'rgb(255 255 255 / 0.04)' }}
               content={({ active, payload }: TooltipProps<number, string>) => {
@@ -168,7 +169,7 @@ export function AttendanceMeter({ present, absent, allocated }: { present: numbe
   const a = (absent / allocated) * 100;
   return (
     <div
-      className="flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full bg-[#2b3344] shadow-[inset_0_1px_2px_rgb(2_4_10/0.6)]"
+      className="flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full bg-[#2c4a40] shadow-[inset_0_1px_2px_rgb(1_14_10/0.6)]"
       title={`${present} present · ${absent} absent · ${allocated - present - absent} unmarked`}
     >
       {p > 0 && <div className="transition-[width] duration-700" style={{ width: `${p}%`, background: `linear-gradient(90deg, ${C.present}, ${C.presentLit})` }} />}

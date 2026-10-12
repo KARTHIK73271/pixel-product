@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu as MenuIcon,
+  Radar,
   ShieldCheck,
   UserCog,
   X,
@@ -38,6 +39,7 @@ const NAV: Record<Role, { section: string; items: NavItem[] }[]> = {
       section: 'Operations',
       items: [
         { to: '/dashboard', label: 'Control center', icon: LayoutDashboard },
+        { to: '/floor', label: 'Mission control', icon: Radar },
         { to: '/examinations', label: 'Examinations', icon: CalendarDays },
         { to: '/attendance', label: 'Attendance', icon: ClipboardCheck },
         { to: '/reports', label: 'Reports', icon: FileBarChart2 },
@@ -90,7 +92,7 @@ function Wordmark() {
       <div className="relative">
         <span aria-hidden className="absolute inset-0 rounded-xl bg-accent/45 blur-md" />
         <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-accent-sweep shadow-inset">
-          <ClipboardCheck className="h-[18px] w-[18px] text-white" />
+          <ClipboardCheck className="h-[18px] w-[18px] text-on-accent" />
         </div>
       </div>
       <div className="leading-tight">
@@ -196,7 +198,7 @@ export function AppShell() {
 
         {mobileOpen && (
           <div className="no-print fixed inset-0 z-40 lg:hidden">
-            <div className="absolute inset-0 animate-fade-in bg-[rgb(2_4_10/0.7)] backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+            <div className="absolute inset-0 animate-fade-in bg-[rgb(1_14_10/0.7)] backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
             <aside className="glass absolute inset-y-0 left-0 w-72 animate-slide-in rounded-r-2xl">
               <Button variant="ghost" size="icon" className="absolute right-2 top-4" onClick={() => setMobileOpen(false)} aria-label="Close menu">
                 <X className="h-4 w-4" />

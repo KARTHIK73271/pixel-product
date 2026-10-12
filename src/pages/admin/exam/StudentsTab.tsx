@@ -170,19 +170,39 @@ export function StudentsTab({ detail }: { detail: ExamDetail }) {
         confirmLabel="Release"
         onConfirm={() => withToast(() => api.del(`/exams/${exam.id}/allocation/seat/${releaseFor!.id}`), 'Seat released')}
       />
-      <AddStudentsDialog open={addOpen} onOpenChange={setAddOpen} examId={exam.id} existing={new Set(students.map((s) => s.id))} />
+      <AddStudentsDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        examId={exam.id}
+        branch={exam.departmentId ? { id: exam.departmentId, code: exam.departmentCode ?? '' } : null}
+        existing={new Set(students.map((s) => s.id))}
+      />
       <SeatDialog student={seatFor} onClose={() => setSeatFor(null)} detail={detail} />
     </div>
   );
 }
 
-function AddStudentsDialog({ open, onOpenChange, examId, existing }: { open: boolean; onOpenChange: (v: boolean) => void; examId: string; existing: Set<string> }) {
+function AddStudentsDialog({
+  open,
+  onOpenChange,
+  examId,
+  branch,
+  existing,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  examId: string;
+  /** Set when the examination is restricted to one department (branch). */
+  branch: { id: string; code: string } | null;
+  existing: Set<string>;
+}) {
   const [search, setSearch] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  // A branch-specific exam only lists students of that branch (the server enforces the same rule).
   const list = useQuery({
-    queryKey: ['students', 'picker', search],
-    queryFn: () => api.get<Paged<Student>>(`/students${qs({ q: search.trim(), pageSize: 50 })}`),
+    queryKey: ['students', 'picker', search, branch?.id ?? 'all'],
+    queryFn: () => api.get<Paged<Student>>(`/students${qs({ q: search.trim(), departmentId: branch?.id, pageSize: 50 })}`),
     enabled: open,
   });
   return (
@@ -194,7 +214,11 @@ function AddStudentsDialog({ open, onOpenChange, examId, existing }: { open: boo
       }}
       size="lg"
       title="Add eligible students"
-      description="Students already sitting another examination in the same date and session will be rejected."
+      description={
+        branch
+          ? `This examination is for ${branch.code} students only, so only ${branch.code} students are listed. Students already sitting another examination in the same date and session will be rejected.`
+          : 'Multi-department examination: students of any branch can be added. Students already sitting another examination in the same date and session will be rejected.'
+      }
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

@@ -97,7 +97,7 @@ export function CommandSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="group flex h-9 w-full max-w-xs items-center gap-2 rounded-lg border border-line bg-canvas/60 px-3 text-[13px] text-faint shadow-[inset_0_1px_2px_rgb(2_4_10/0.4)] transition-all duration-300 hover:border-accent/40 hover:text-muted"
+        className="group flex h-9 w-full max-w-xs items-center gap-2 rounded-lg border border-line bg-canvas/60 px-3 text-[13px] text-faint shadow-[inset_0_1px_2px_rgb(1_14_10/0.4)] transition-all duration-300 hover:border-accent/40 hover:text-muted"
         aria-label="Search"
       >
         <Search className="h-4 w-4 transition-colors group-hover:text-accent" />
@@ -108,7 +108,7 @@ export function CommandSearch() {
       </button>
       <D.Root open={open} onOpenChange={setOpen}>
         <D.Portal>
-          <D.Overlay className="fixed inset-0 z-50 animate-fade-in bg-[rgb(2_4_10/0.72)] backdrop-blur-[3px]" />
+          <D.Overlay className="fixed inset-0 z-50 animate-fade-in bg-[rgb(1_14_10/0.72)] backdrop-blur-[3px]" />
           <D.Content className="glass edge-light fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 animate-fade-in overflow-hidden rounded-2xl shadow-pop">
             <D.Title className="sr-only">Global search</D.Title>
             <D.Description className="sr-only">Search across records you are allowed to see</D.Description>

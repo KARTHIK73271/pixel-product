@@ -103,7 +103,7 @@ export function Progress({ value, className, tone = 'accent' }: { value: number;
   const glow = { accent: 'rgb(var(--accent)/0.65)', ok: 'rgb(var(--ok)/0.6)', warn: 'rgb(var(--warn)/0.6)', bad: 'rgb(var(--bad)/0.6)' }[tone];
   return (
     <div
-      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-canvas/80 shadow-[inset_0_1px_2px_rgb(2_4_10/0.6)]', className)}
+      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-canvas/80 shadow-[inset_0_1px_2px_rgb(1_14_10/0.6)]', className)}
       role="progressbar"
       aria-valuenow={Math.round(pct)}
       aria-valuemin={0}

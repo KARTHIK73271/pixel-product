@@ -84,12 +84,15 @@ export const userCreateSchema = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email').max(254),
   fullName: trimmed(2, 120, 'Full name'),
   role: z.enum(['ADMIN', 'INCHARGE']),
+  /** Optional: leave blank for a Google-only account (password sign-in disabled). */
   password: z
     .string()
     .min(10, 'Password must be at least 10 characters')
     .max(200)
     .regex(/[A-Za-z]/, 'Password must contain a letter')
-    .regex(/[0-9]/, 'Password must contain a number'),
+    .regex(/[0-9]/, 'Password must contain a number')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 });
 export type UserCreateInput = z.infer<typeof userCreateSchema>;
 
@@ -199,8 +202,19 @@ export const eligibleSchema = z.union([
 ]);
 
 export const setRoomsSchema = z.object({ roomIds: z.array(uuid).max(50) });
+/** Up to two faculty in-charges per exam hall; an empty list unassigns the hall. */
 export const setInchargesSchema = z.object({
-  assignments: z.array(z.object({ roomId: uuid, inchargeId: uuid.nullable() })).max(50),
+  assignments: z
+    .array(
+      z.object({
+        roomId: uuid,
+        inchargeIds: z
+          .array(uuid)
+          .max(2, 'An exam hall can have at most 2 faculty in-charges')
+          .refine((ids) => new Set(ids).size === ids.length, 'The same faculty member was selected twice'),
+      }),
+    )
+    .max(50),
 });
 
 export const allocationRequestSchema = z.object({

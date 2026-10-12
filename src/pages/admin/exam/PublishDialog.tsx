@@ -11,7 +11,7 @@ export function PublishDialog({ open, onOpenChange, detail }: { open: boolean; o
   const { exam, rooms } = detail;
   const [ack, setAck] = useState(false);
   const occupied = rooms.filter((r) => r.allocated > 0);
-  const missing = occupied.filter((r) => !r.inchargeId);
+  const missing = occupied.filter((r) => r.inchargeIds.length === 0);
   const unallocated = exam.eligibleCount - exam.allocatedCount;
   const checks = [
     { ok: exam.status === 'ALLOCATED', label: 'Seating allocation confirmed' },

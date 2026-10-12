@@ -75,7 +75,7 @@ describe('insufficient capacity handling', () => {
     let pub = await admin.post(`/api/exams/${osShortage}/publish`, {});
     expect(pub.body.error.code).toBe('MISSING_INCHARGE');
     const sanjay = await userId(env.db, SANJAY);
-    expect((await admin.put(`/api/exams/${osShortage}/incharges`, { assignments: [{ roomId: env.seed.rooms['B-202'], inchargeId: sanjay }] })).status).toBe(200);
+    expect((await admin.put(`/api/exams/${osShortage}/incharges`, { assignments: [{ roomId: env.seed.rooms['B-202'], inchargeIds: [sanjay] }] })).status).toBe(200);
     pub = await admin.post(`/api/exams/${osShortage}/publish`, {});
     expect(pub.status).toBe(409);
     expect(pub.body.error.code).toBe('UNALLOCATED_STUDENTS');

@@ -9,6 +9,7 @@ import { CoursesPage } from './pages/admin/CoursesPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { ExamDetailPage } from './pages/admin/ExamDetailPage';
 import { ExamsPage } from './pages/admin/ExamsPage';
+import { FloorMapPage } from './pages/admin/FloorMapPage';
 import { RoomsPage } from './pages/admin/RoomsPage';
 import { StaffPage } from './pages/admin/StaffPage';
 import { StudentsPage } from './pages/admin/StudentsPage';
@@ -60,6 +61,7 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route element={<RequireRole roles={['ADMIN']} />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/floor" element={<FloorMapPage />} />
             <Route path="/examinations" element={<ExamsPage />} />
             <Route path="/examinations/:id" element={<ExamDetailPage />} />
             <Route path="/attendance" element={<AttendanceBoardPage />} />

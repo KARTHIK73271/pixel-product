@@ -5,6 +5,8 @@ import { createSession, destroySession, sessionCookieOptions } from '../auth/ses
 import { config } from '../config';
 import type { Database } from '../db/index';
 import { AppError, asyncHandler, parse, unauthorized } from '../http/errors';
+import { googleConfig } from '../auth/google';
+import { googleRoutes } from './google';
 
 /** Fixed-window limiter for login attempts, keyed by IP + email (in-memory; per process). */
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -85,6 +87,13 @@ export function authRoutes(db: Database) {
   r.get('/me', (req, res) => {
     res.json({ user: req.ctx?.user ?? null });
   });
+
+  // Which sign-in methods are available (never exposes client ids or secrets).
+  r.get('/providers', (_req, res) => {
+    res.json({ password: true, google: googleConfig() !== null });
+  });
+
+  r.use('/google', googleRoutes(db));
 
   r.get('/demo', (_req, res) => {
     res.json(config.demoMode ? { enabled: true, password: DEMO_PASSWORD, accounts: DEMO_ACCOUNTS } : { enabled: false });

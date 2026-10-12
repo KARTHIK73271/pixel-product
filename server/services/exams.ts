@@ -112,12 +112,13 @@ export async function getExamDetail(q: Queryable, examId: string) {
             (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = r.id)::int as marked,
             (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = r.id and ar.status = 'PRESENT')::int as present,
             (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = r.id and ar.status = 'ABSENT')::int as absent,
-            ia.incharge_id as "inchargeId", app.staff_name(ia.incharge_id) as "inchargeName",
+            coalesce((select array_agg(ia.incharge_id::text order by ia.assigned_at, ia.incharge_id)
+                        from incharge_assignments ia where ia.exam_id = er.exam_id and ia.room_id = er.room_id), '{}') as "inchargeIds",
+            app.room_incharge_names(er.exam_id, er.room_id) as "inchargeName",
             coalesce(s.status::text, 'NOT_STARTED') as "submissionStatus", s.finalized_at as "finalizedAt",
             s.reopened_count as "reopenedCount"
        from exam_rooms er
        join rooms r on r.id = er.room_id
-       left join incharge_assignments ia on ia.exam_id = er.exam_id and ia.room_id = er.room_id
        left join attendance_submissions s on s.exam_id = er.exam_id and s.room_id = er.room_id
       where er.exam_id = $1
       order by r.room_no`,
@@ -144,7 +145,7 @@ interface RoomLite {
   roomNo: string;
   status: string;
   allocated: number;
-  inchargeId: string | null;
+  inchargeIds: string[];
   capacity: number;
 }
 
@@ -161,7 +162,7 @@ export function examWarnings(exam: ExamRow, rooms: RoomLite[]) {
   for (const r of rooms) {
     if (r.status !== 'AVAILABLE')
       w.push({ severity: 'critical', message: `Room ${r.roomNo} is ${r.status.toLowerCase()} but still assigned.` });
-    if (r.allocated > 0 && !r.inchargeId)
+    if (r.allocated > 0 && r.inchargeIds.length === 0)
       w.push({ severity: 'warning', message: `Room ${r.roomNo} has ${r.allocated} students but no in-charge.` });
   }
   const unallocated = exam.eligibleCount - exam.allocatedCount;
@@ -342,6 +343,23 @@ export async function changeEligible(
     return res;
   }
   if (body.mode === 'add') {
+    // Branch rule (also enforced by a database trigger): a department-specific exam only admits that department.
+    const wrongBranch = await q.query<{ roll_no: string; code: string; exam_code: string }>(
+      `select s.roll_no, d.code, ed.code as exam_code
+         from examinations e join departments ed on ed.id = e.department_id
+         cross join unnest($2::uuid[]) as t(sid)
+         join students s on s.id = t.sid join departments d on d.id = s.department_id
+        where e.id = $1 and s.department_id <> e.department_id
+        order by s.roll_no`,
+      [examId, body.studentIds],
+    );
+    if (wrongBranch.rows.length) {
+      const list = wrongBranch.rows.slice(0, 5).map((r) => `${r.roll_no} (${r.code})`).join(', ');
+      throw conflict(
+        'BRANCH_MISMATCH',
+        `This examination is only for ${wrongBranch.rows[0].exam_code} students. Not allowed: ${list}${wrongBranch.rows.length > 5 ? ` and ${wrongBranch.rows.length - 5} more` : ''}.`,
+      );
+    }
     const r = await q.query(
       `insert into exam_students (exam_id, student_id, exam_date, session, exam_active)
        select e.id, s.id, e.exam_date, e.session, e.is_active
@@ -434,41 +452,47 @@ export async function setExamRooms(q: Queryable, examId: string, roomIds: string
   return { added: toAdd.length, removed: toRemove.length, released };
 }
 
+/** Maximum faculty in-charges per exam hall (also enforced by a database trigger). */
+export const MAX_INCHARGES_PER_ROOM = 2;
+
+/** Sets the complete faculty list (0–2 in-charges) for each given exam hall. */
 export async function setIncharges(
   q: Queryable,
   examId: string,
-  assignments: { roomId: string; inchargeId: string | null }[],
+  assignments: { roomId: string; inchargeIds: string[] }[],
   userId: string,
 ) {
   const cur = await lockExam(q, examId);
   if (!cur.is_active) throw conflict('EXAM_INACTIVE', 'This examination is deactivated.');
   const changes: string[] = [];
   for (const a of assignments) {
+    const wanted = [...new Set(a.inchargeIds)];
+    if (wanted.length !== a.inchargeIds.length) throw badRequest('The same faculty member was selected twice for one hall.');
+    if (wanted.length > MAX_INCHARGES_PER_ROOM) throw badRequest(`An exam hall can have at most ${MAX_INCHARGES_PER_ROOM} faculty in-charges.`);
     const room = await q.query<{ room_no: string }>(
       `select r.room_no from exam_rooms er join rooms r on r.id = er.room_id where er.exam_id = $1 and er.room_id = $2`,
       [examId, a.roomId],
     );
     if (!room.rows[0]) throw badRequest('Room is not assigned to this examination.');
-    if (a.inchargeId === null) {
-      const d = await q.query('delete from incharge_assignments where exam_id = $1 and room_id = $2', [examId, a.roomId]);
-      if (d.rowCount) changes.push(`${room.rows[0].room_no}: unassigned`);
-      continue;
+    const current = (
+      await q.query<{ incharge_id: string }>('select incharge_id from incharge_assignments where exam_id = $1 and room_id = $2', [examId, a.roomId])
+    ).rows.map((r) => r.incharge_id);
+    const removed = current.filter((id) => !wanted.includes(id));
+    const added = wanted.filter((id) => !current.includes(id));
+    if (!removed.length && !added.length) continue;
+    // remove first so swapping a faculty member never trips the two-per-hall limit
+    if (removed.length)
+      await q.query('delete from incharge_assignments where exam_id = $1 and room_id = $2 and incharge_id = any($3::uuid[])', [examId, a.roomId, removed]);
+    for (const id of added) {
+      await q.query(
+        `insert into incharge_assignments (exam_id, room_id, incharge_id, exam_date, session, exam_active, assigned_by)
+         select er.exam_id, er.room_id, $3, er.exam_date, er.session, er.exam_active, $4
+           from exam_rooms er where er.exam_id = $1 and er.room_id = $2`,
+        [examId, a.roomId, id, userId],
+      );
     }
-    const prev = await q.query<{ incharge_id: string }>(
-      'select incharge_id from incharge_assignments where exam_id = $1 and room_id = $2',
-      [examId, a.roomId],
-    );
-    if (prev.rows[0]?.incharge_id === a.inchargeId) continue;
-    await q.query(
-      `insert into incharge_assignments (exam_id, room_id, incharge_id, exam_date, session, exam_active, assigned_by)
-       select er.exam_id, er.room_id, $3, er.exam_date, er.session, er.exam_active, $4
-         from exam_rooms er where er.exam_id = $1 and er.room_id = $2
-       on conflict (exam_id, room_id) do update set incharge_id = excluded.incharge_id,
-              assigned_by = excluded.assigned_by, assigned_at = now()`,
-      [examId, a.roomId, a.inchargeId, userId],
-    );
-    const name = await q.query<{ n: string | null }>('select app.staff_name($1) as n', [a.inchargeId]);
-    changes.push(`${room.rows[0].room_no}: ${name.rows[0].n ?? 'in-charge'}`);
+    const names = await q.query<{ n: string | null }>('select app.room_incharge_names($1, $2) as n', [examId, a.roomId]);
+    changes.push(`${room.rows[0].room_no}: ${names.rows[0].n ?? 'unassigned'}`);
   }
   if (changes.length)
     await audit(q, {

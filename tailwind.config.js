@@ -14,6 +14,8 @@ export default {
         muted: 'rgb(var(--muted) / <alpha-value>)',
         faint: 'rgb(var(--faint) / <alpha-value>)',
         accent: 'rgb(var(--accent) / <alpha-value>)',
+        'on-accent': 'rgb(var(--on-accent) / <alpha-value>)',
+        'emerald-ink': 'rgb(var(--emerald) / <alpha-value>)',
         'accent-2': 'rgb(var(--accent-2) / <alpha-value>)',
         cyan: 'rgb(var(--cyan) / <alpha-value>)',
         brass: 'rgb(var(--brass) / <alpha-value>)',
@@ -34,14 +36,15 @@ export default {
         '3xl': '1.375rem',
       },
       boxShadow: {
-        pop: '0 24px 60px -20px rgb(2 4 10 / 0.85), 0 2px 8px -2px rgb(2 4 10 / 0.6), 0 0 0 1px rgb(var(--line-strong) / 0.9)',
-        lift: '0 18px 44px -24px rgb(2 4 10 / 0.9), 0 1px 0 0 rgb(255 255 255 / 0.05) inset',
+        pop: '0 24px 60px -20px rgb(1 14 10 / 0.85), 0 2px 8px -2px rgb(1 14 10 / 0.6), 0 0 0 1px rgb(var(--line-strong) / 0.9)',
+        lift: '0 18px 44px -24px rgb(1 14 10 / 0.9), 0 1px 0 0 rgb(255 255 255 / 0.05) inset',
         glow: '0 0 0 1px rgb(var(--accent) / 0.35), 0 10px 40px -12px rgb(var(--accent) / 0.45)',
         'glow-sm': '0 0 14px -2px rgb(var(--accent) / 0.55)',
         inset: 'inset 0 1px 0 0 rgb(255 255 255 / 0.055)',
       },
       backgroundImage: {
-        'accent-sweep': 'linear-gradient(135deg, rgb(var(--accent)) 0%, rgb(var(--accent-2)) 52%, rgb(var(--cyan)) 100%)',
+        // Champagne → champagne-gold → gold: always paired with Emerald Ink text (`text-on-accent`)
+        'accent-sweep': 'linear-gradient(135deg, rgb(var(--accent)) 0%, rgb(var(--accent-2)) 58%, rgb(var(--brass)) 100%)',
         'brass-sweep': 'linear-gradient(135deg, rgb(var(--brass)) 0%, rgb(var(--warn)) 100%)',
         'sheen-top': 'linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0) 45%)',
       },

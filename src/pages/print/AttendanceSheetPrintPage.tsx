@@ -40,7 +40,7 @@ export function AttendanceSheetPrintPage() {
               { k: 'Year / Section', v: `${s.year} / ${s.examSection ?? 'All'}` },
               { k: 'Room capacity', v: s.capacity },
               { k: 'Candidates', v: s.counts.allocated },
-              { k: 'In-charge', v: s.inchargeName ?? '—' },
+              { k: 'Faculty in-charge', v: s.inchargeName ?? '—' },
               { k: 'Status', v: s.submissionStatus === 'FINALIZED' ? `Finalized ${fmtDateTime(s.finalizedAt)}` : 'Not finalized' },
             ]}
           />
@@ -83,8 +83,13 @@ export function AttendanceSheetPrintPage() {
               Total: <b>{s.counts.allocated}</b>
             </p>
           </div>
-          <div className="mt-12 grid grid-cols-2 gap-16 text-[12px]">
-            <div className="border-t border-[#111] pt-1">Signature of Room In-Charge</div>
+          {/* one signature line per assigned faculty member (up to two), plus the chief superintendent */}
+          <div className="mt-12 grid grid-cols-3 gap-10 text-[12px]">
+            {(s.inchargeName ? s.inchargeName.split(', ') : ['Faculty in-charge']).map((name) => (
+              <div key={name} className="border-t border-[#111] pt-1">
+                Signature — {name}
+              </div>
+            ))}
             <div className="border-t border-[#111] pt-1">Signature of Chief Superintendent</div>
           </div>
           <p className="mt-6 text-[10px] text-[#666]">Generated {fmtDateTime(new Date().toISOString())} · Smart Examination Section</p>

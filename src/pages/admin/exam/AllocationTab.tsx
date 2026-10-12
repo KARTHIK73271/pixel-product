@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { CheckCircle2, Lock, Rows3, Send, Shuffle, Sparkles, Target } from 'lucide-react';
+import { Classroom3D, ViewToggle } from '@/components/Classroom3D';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type { AllocationStrategy, SeatOrder } from '@shared/schemas';
@@ -253,6 +254,7 @@ function PreviewPanel({ preview, onConfirm, onDiscard }: { preview: AllocationPr
 function CurrentAllocation({ detail, onPublish }: { detail: ExamDetail; onPublish: () => void }) {
   const { exam, rooms, students } = detail;
   const [active, setActive] = useState<string | null>(null);
+  const [mode, setMode] = useState<'3d' | 'grid'>('3d');
   const occupied = rooms.filter((r) => r.allocated > 0);
   const room = rooms.find((r) => r.id === (active ?? occupied[0]?.id));
   const seats = useMemo(() => {
@@ -263,8 +265,8 @@ function CurrentAllocation({ detail, onPublish }: { detail: ExamDetail; onPublis
   // Department colours follow a fixed order of the exam's departments (validated pair; 3rd+ fall back to neutral + legend).
   const deptColor = useMemo(() => {
     const depts = [...new Set(students.map((s) => s.departmentCode))].sort();
-    const palette = ['#3987e5', '#d95926'];
-    return new Map(depts.map((d, i) => [d, palette[i] ?? '#7d879b']));
+    const palette = ['#c98500', '#9085e9'];
+    return new Map(depts.map((d, i) => [d, palette[i] ?? '#96a494']));
   }, [students]);
 
   if (exam.status === 'DRAFT')
@@ -309,11 +311,33 @@ function CurrentAllocation({ detail, onPublish }: { detail: ExamDetail; onPublis
           </Table>
         </div>
         <div className="p-4">
-          {room ? (
+          {room && mode === '3d' ? (
             <>
-              <p className="mb-3 text-xs text-muted">
-                Seat map · {room.roomNo} · {room.allocated}/{room.capacity} occupied (hover a seat for the candidate)
-              </p>
+              <div className="mb-3 flex justify-end">
+                <ViewToggle mode={mode} onChange={setMode} />
+              </div>
+              <Classroom3D
+                capacity={room.capacity}
+                roomNo={room.roomNo}
+                seats={seats.map((s) => ({
+                  no: s.no,
+                  color: s.student ? deptColor.get(s.student.departmentCode) : undefined,
+                  detail: s.student ? `${s.student.rollNo} · ${s.student.fullName} (${s.student.departmentCode}-${s.student.section})` : undefined,
+                }))}
+                legend={[...new Set(students.filter((s) => s.roomId === room.id).map((s) => s.departmentCode))].map((d) => ({
+                  label: d,
+                  color: deptColor.get(d)!,
+                }))}
+              />
+            </>
+          ) : room ? (
+            <>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted">
+                  Seat map · {room.roomNo} · {room.allocated}/{room.capacity} occupied (hover a seat for the candidate)
+                </p>
+                <ViewToggle mode={mode} onChange={setMode} />
+              </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(38px,1fr))] gap-1.5">
                 {seats.map((s) => (
                   <div

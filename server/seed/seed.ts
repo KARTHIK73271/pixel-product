@@ -36,7 +36,7 @@ const ECE_A = [
 
 export interface SeedResult {
   adminId: string;
-  incharges: { priya: string; arjun: string };
+  incharges: { priya: string; arjun: string; sanjay: string };
   exams: Record<'dbmsToday' | 'dspToday' | 'mathDraft' | 'osShortage' | 'cnPast', string>;
   rooms: Record<string, string>;
   studentUserEmail: string;
@@ -62,7 +62,7 @@ export async function seedDatabase(db: Database, log: (m: string) => void = () =
     const adminId = await user('admin@exam.local', 'Dr. Kavitha Subramanian', 'ADMIN');
     const priya = await user('priya.raman@exam.local', 'Dr. Priya Raman', 'INCHARGE');
     const arjun = await user('arjun.mehta@exam.local', 'Prof. Arjun Mehta', 'INCHARGE');
-    await user('sanjay.verma@exam.local', 'Mr. Sanjay Verma', 'INCHARGE');
+    const sanjay = await user('sanjay.verma@exam.local', 'Mr. Sanjay Verma', 'INCHARGE');
 
     const addStudents = async (names: string[], deptCode: 'CSE' | 'ECE', section: string, startNo: number) => {
       for (const [i, name] of names.entries()) {
@@ -101,7 +101,7 @@ export async function seedDatabase(db: Database, log: (m: string) => void = () =
       'C-301': await room('C-301', 'Science Block C', 3, 50),
       'LH-1': await room('LH-1', 'Lecture Hall Complex', 0, 120, 'MAINTENANCE', 'Projector and seating repair until further notice'),
     };
-    return { dept, adminId, priya, arjun, courses, rooms };
+    return { dept, adminId, priya, arjun, sanjay, courses, rooms };
   });
   log('reference data: 3 departments, 44 users, 40 students, 5 courses, 6 rooms');
 
@@ -162,10 +162,11 @@ export async function seedDatabase(db: Database, log: (m: string) => void = () =
     await commitAllocation(q, cnPast, { strategy: 'BALANCED', order: 'ROLL' }, admin);
   });
   await asAdmin(async (q) => {
-    await setIncharges(q, dbmsToday, [{ roomId: R['A-101'], inchargeId: base.priya }, { roomId: R['B-202'], inchargeId: base.arjun }], admin);
-    await setIncharges(q, dspToday, [{ roomId: R['B-202'], inchargeId: base.arjun }], admin);
-    await setIncharges(q, mathDraft, [{ roomId: R['C-301'], inchargeId: base.priya }, { roomId: R['A-102'], inchargeId: base.arjun }], admin);
-    await setIncharges(q, cnPast, [{ roomId: R['A-101'], inchargeId: base.priya }, { roomId: R['A-102'], inchargeId: base.arjun }], admin);
+    // A-101 for CS301 is a two-faculty hall (Priya + Sanjay); the rest have one in-charge.
+    await setIncharges(q, dbmsToday, [{ roomId: R['A-101'], inchargeIds: [base.priya, base.sanjay] }, { roomId: R['B-202'], inchargeIds: [base.arjun] }], admin);
+    await setIncharges(q, dspToday, [{ roomId: R['B-202'], inchargeIds: [base.arjun] }], admin);
+    await setIncharges(q, mathDraft, [{ roomId: R['C-301'], inchargeIds: [base.priya] }, { roomId: R['A-102'], inchargeIds: [base.arjun] }], admin);
+    await setIncharges(q, cnPast, [{ roomId: R['A-101'], inchargeIds: [base.priya] }, { roomId: R['A-102'], inchargeIds: [base.arjun] }], admin);
   });
   await asAdmin(async (q) => {
     await publishExam(q, cnPast, false, admin);
@@ -197,7 +198,7 @@ export async function seedDatabase(db: Database, log: (m: string) => void = () =
 
   return {
     adminId: base.adminId,
-    incharges: { priya: base.priya, arjun: base.arjun },
+    incharges: { priya: base.priya, arjun: base.arjun, sanjay: base.sanjay },
     exams: { dbmsToday, dspToday, mathDraft, osShortage, cnPast },
     rooms: R,
     studentUserEmail: '23cse001@student.exam.local',
@@ -231,6 +232,17 @@ export async function runSeedSelfCheck(db: Database, seed: SeedResult, log: (m: 
     await q.query(`update allocations set seat_no = 31 where id = (select id from allocations where exam_id = $1 and room_id = $2 limit 1)`, [
       seed.exams.mathDraft, seed.rooms['A-102'],
     ]);
+  });
+  await attempt('Assign a 3rd faculty to hall A-101 (max 2)', seed.adminId, (q) =>
+    q.query(
+      `insert into incharge_assignments (exam_id, room_id, incharge_id, exam_date, session, exam_active)
+       select exam_id, room_id, $3, exam_date, session, exam_active from exam_rooms where exam_id = $1 and room_id = $2`,
+      [seed.exams.dbmsToday, seed.rooms['A-101'], seed.incharges.arjun],
+    ),
+  );
+  await attempt('Enrol an ECE student in the CSE-only OS exam', seed.adminId, async (q) => {
+    const ece = (await q.query<{ id: string }>(`select s.id from students s join departments d on d.id = s.department_id where d.code = 'ECE' limit 1`)).rows[0];
+    await changeEligible(q, seed.exams.osShortage, { mode: 'add', studentIds: [ece.id] });
   });
   await attempt('Finalize B-202 with unmarked students', seed.incharges.arjun, (q) =>
     finalizeRoom(q, { id: seed.incharges.arjun, role: 'INCHARGE', email: '', fullName: '', studentId: null }, seed.exams.dbmsToday, seed.rooms['B-202']),

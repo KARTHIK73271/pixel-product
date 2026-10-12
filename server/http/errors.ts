@@ -37,6 +37,7 @@ function validationError(err: ZodError) {
 /** Human messages for constraint / index names raised by PostgreSQL. */
 const CONSTRAINT_MESSAGES: Record<string, string> = {
   users_email_key: 'An account with this email already exists.',
+  users_google_sub_key: 'This Google account is already linked to another user.',
   departments_code_key: 'A department with this code already exists.',
   departments_name_key: 'A department with this name already exists.',
   students_roll_no_key: 'A student with this roll number already exists.',
@@ -94,7 +95,7 @@ export function mapDatabaseError(err: unknown): AppError | null {
       const m = /^(ERR_[A-Z_]+):\s*(.*)$/s.exec(e.message ?? '');
       if (m) {
         const code = m[1].slice(4);
-        const status = code === 'FORBIDDEN' ? 403 : code === 'UNAUTHENTICATED' ? 401 : 409;
+        const status = code === 'FORBIDDEN' ? 403 : code === 'UNAUTHENTICATED' ? 401 : code === 'NOT_FOUND' ? 404 : 409;
         return new AppError(status, code, m[2]);
       }
       return null;

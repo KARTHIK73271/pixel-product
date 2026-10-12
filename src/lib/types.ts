@@ -54,7 +54,9 @@ export interface ExamRoom {
   marked: number;
   present: number;
   absent: number;
-  inchargeId: string | null;
+  /** Up to two faculty in-charges for this hall. */
+  inchargeIds: string[];
+  /** Their names, comma separated. */
   inchargeName: string | null;
   submissionStatus: SubmissionState;
   finalizedAt: string | null;
@@ -140,6 +142,7 @@ export interface Student {
   departmentId: string;
   departmentCode: string;
   hasLogin: boolean;
+  googleLinked: boolean;
   examCount: number;
 }
 
@@ -201,7 +204,6 @@ export interface RoomSheet {
   floor: number | null;
   capacity: number;
   inchargeName: string | null;
-  inchargeId: string | null;
   submissionStatus: SubmissionState;
   finalizedAt: string | null;
   finalizedByName: string | null;

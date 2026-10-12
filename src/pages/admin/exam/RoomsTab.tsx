@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/form';
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table';
 import { api, errorMessage, qs } from '@/lib/api';
 import { withToast } from '@/lib/forms';
-import type { ExamDetail, Meta, Room } from '@/lib/types';
+import type { ExamDetail, ExamRoom, Meta, Room } from '@/lib/types';
 import { cn, fmtDate } from '@/lib/utils';
 
 export function RoomsTab({ detail }: { detail: ExamDetail }) {
@@ -22,11 +22,16 @@ export function RoomsTab({ detail }: { detail: ExamDetail }) {
   const locked = exam.status === 'PUBLISHED' || !exam.isActive;
   const shortage = exam.eligibleCount - exam.capacity;
 
-  const assign = async (roomId: string, inchargeId: string) => {
-    setSaving(roomId);
+  /** Saves the hall's full faculty list (max 2). `slot` 0/1 = Faculty 1/2; '' clears that slot. */
+  const assign = async (room: ExamRoom, slot: 0 | 1, inchargeId: string) => {
+    const next = [...room.inchargeIds];
+    if (inchargeId) next[slot] = inchargeId;
+    else next.splice(slot, 1); // clearing Faculty 1 promotes Faculty 2
+    const inchargeIds = [...new Set(next.filter(Boolean))].slice(0, 2);
+    setSaving(room.id);
     try {
-      await api.put(`/exams/${exam.id}/incharges`, { assignments: [{ roomId, inchargeId: inchargeId || null }] });
-      toast.success(inchargeId ? 'In-charge assigned' : 'In-charge removed');
+      await api.put(`/exams/${exam.id}/incharges`, { assignments: [{ roomId: room.id, inchargeIds }] });
+      toast.success(inchargeIds.length === 2 ? `Two faculty assigned to ${room.roomNo}` : inchargeIds.length ? 'Faculty assigned' : `Faculty removed from ${room.roomNo}`);
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -70,7 +75,7 @@ export function RoomsTab({ detail }: { detail: ExamDetail }) {
                 <TH>Status</TH>
                 <TH className="w-48">Seats</TH>
                 <TH className="text-right">Remaining</TH>
-                <TH className="w-56">In-charge</TH>
+                <TH className="w-[280px]">Faculty in-charge (up to 2)</TH>
                 <TH>Attendance</TH>
               </tr>
             </THead>
@@ -98,20 +103,35 @@ export function RoomsTab({ detail }: { detail: ExamDetail }) {
                   </TD>
                   <TD className="tnum text-right">{r.capacity - r.allocated}</TD>
                   <TD>
-                    <Select
-                      value={r.inchargeId ?? ''}
-                      disabled={!exam.isActive || saving === r.id}
-                      onChange={(e) => assign(r.id, e.target.value)}
-                      className={cn('h-8', r.allocated > 0 && !r.inchargeId && 'border-warn/60')}
-                      aria-label={`In-charge for ${r.roomNo}`}
-                    >
-                      <option value="">{r.allocated > 0 ? '⚠ Unassigned' : 'Unassigned'}</option>
-                      {meta.data?.incharges.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.fullName}
-                        </option>
-                      ))}
-                    </Select>
+                    <div className="space-y-1.5">
+                      {([0, 1] as const).map((slot) => {
+                        const value = r.inchargeIds[slot] ?? '';
+                        const other = r.inchargeIds[slot === 0 ? 1 : 0];
+                        const needsFirst = slot === 1 && r.inchargeIds.length === 0;
+                        return (
+                          <Select
+                            key={slot}
+                            value={value}
+                            disabled={!exam.isActive || saving === r.id || needsFirst}
+                            onChange={(e) => assign(r, slot, e.target.value)}
+                            className={cn('h-8', slot === 0 && r.allocated > 0 && r.inchargeIds.length === 0 && 'border-warn/60')}
+                            aria-label={`Faculty ${slot + 1} for ${r.roomNo}`}
+                            title={needsFirst ? 'Choose Faculty 1 first' : undefined}
+                          >
+                            <option value="">
+                              {slot === 0 ? (r.allocated > 0 ? '⚠ Faculty 1 — unassigned' : 'Faculty 1 — unassigned') : 'Faculty 2 — optional'}
+                            </option>
+                            {meta.data?.incharges
+                              .filter((u) => u.id !== other)
+                              .map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.fullName}
+                                </option>
+                              ))}
+                          </Select>
+                        );
+                      })}
+                    </div>
                   </TD>
                   <TD>{exam.status === 'PUBLISHED' && r.allocated > 0 ? <SubmissionBadge status={r.submissionStatus} /> : <span className="text-faint">—</span>}</TD>
                 </TR>
@@ -121,7 +141,8 @@ export function RoomsTab({ detail }: { detail: ExamDetail }) {
         )}
       </Card>
       <p className="text-xs text-faint">
-        An in-charge can supervise only one room per date and session; conflicting assignments are rejected by the database.
+        Each exam hall can have up to two faculty in-charges, and both can record attendance. A faculty member supervises only one hall per
+        date and session; conflicting or extra assignments are rejected by the database.
       </p>
       <ChooseRoomsDialog open={editOpen} onOpenChange={setEditOpen} detail={detail} />
     </div>

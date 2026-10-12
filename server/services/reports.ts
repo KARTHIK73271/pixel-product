@@ -35,7 +35,7 @@ export async function absenteeReport(q: Queryable, user: AuthUser, examId: strin
     submissionStatus: string;
     finalizedAt: string | null;
   }>(
-    `select r.id as "roomId", r.room_no as "roomNo", r.block, app.staff_name(ia.incharge_id) as "inchargeName",
+    `select r.id as "roomId", r.room_no as "roomNo", r.block, app.room_incharge_names(er.exam_id, r.id) as "inchargeName",
             count(a.id)::int as allocated,
             count(*) filter (where ar.status = 'PRESENT')::int as present,
             count(*) filter (where ar.status = 'ABSENT')::int as absent,
@@ -43,12 +43,11 @@ export async function absenteeReport(q: Queryable, user: AuthUser, examId: strin
             coalesce(s.status::text, 'NOT_STARTED') as "submissionStatus", s.finalized_at as "finalizedAt"
        from exam_rooms er
        join rooms r on r.id = er.room_id
-       left join incharge_assignments ia on ia.exam_id = er.exam_id and ia.room_id = er.room_id
        left join attendance_submissions s on s.exam_id = er.exam_id and s.room_id = er.room_id
        left join allocations a on a.exam_id = er.exam_id and a.room_id = er.room_id
        left join attendance_records ar on ar.allocation_id = a.id
       where er.exam_id = $1 and ($2::uuid is null or er.room_id = $2)
-      group by r.id, r.room_no, r.block, ia.incharge_id, s.status, s.finalized_at
+      group by er.exam_id, r.id, r.room_no, r.block, s.status, s.finalized_at
       order by r.room_no`,
     [examId, roomId ?? null],
   );
@@ -122,19 +121,18 @@ export async function departmentStats(q: Queryable, f: { examId?: string; from?:
 export async function pendingSubmissions(q: Queryable) {
   const r = await q.query(
     `select e.id as "examId", e.name as "examName", e.exam_date as "examDate", e.session, c.code as "courseCode",
-            r.id as "roomId", r.room_no as "roomNo", app.staff_name(ia.incharge_id) as "inchargeName",
+            r.id as "roomId", r.room_no as "roomNo", app.room_incharge_names(e.id, r.id) as "inchargeName",
             count(a.id)::int as allocated, count(ar.allocation_id)::int as marked,
             coalesce(s.status::text, 'NOT_STARTED') as "submissionStatus", s.reopened_count as "reopenedCount"
        from exam_rooms er
        join examinations e on e.id = er.exam_id and e.is_active and e.status = 'PUBLISHED'
        join courses c on c.id = e.course_id
        join rooms r on r.id = er.room_id
-       left join incharge_assignments ia on ia.exam_id = er.exam_id and ia.room_id = er.room_id
        left join attendance_submissions s on s.exam_id = er.exam_id and s.room_id = er.room_id
        join allocations a on a.exam_id = er.exam_id and a.room_id = er.room_id
        left join attendance_records ar on ar.allocation_id = a.id
       where coalesce(s.status::text, 'NOT_STARTED') <> 'FINALIZED'
-      group by e.id, e.name, e.exam_date, e.session, c.code, r.id, r.room_no, ia.incharge_id, s.status, s.reopened_count
+      group by e.id, e.name, e.exam_date, e.session, c.code, r.id, r.room_no, s.status, s.reopened_count
       order by e.exam_date, e.session, r.room_no`,
   );
   const today = todayIso();

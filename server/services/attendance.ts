@@ -41,7 +41,7 @@ export async function getRoomSheet(q: Queryable, user: AuthUser, examId: string,
             e.year, e.section as "examSection",
             c.code as "courseCode", c.name as "courseName", d.name as "departmentName",
             r.id as "roomId", r.room_no as "roomNo", r.block, r.floor, r.capacity,
-            app.staff_name(ia.incharge_id) as "inchargeName", ia.incharge_id as "inchargeId",
+            app.room_incharge_names(er.exam_id, er.room_id) as "inchargeName",
             coalesce(s.status::text, 'NOT_STARTED') as "submissionStatus",
             s.finalized_at as "finalizedAt", app.staff_name(s.finalized_by) as "finalizedByName",
             s.reopened_count as "reopenedCount", s.last_reopen_reason as "lastReopenReason"
@@ -50,7 +50,6 @@ export async function getRoomSheet(q: Queryable, user: AuthUser, examId: string,
        join courses c on c.id = e.course_id
        left join departments d on d.id = e.department_id
        join rooms r on r.id = er.room_id
-       left join incharge_assignments ia on ia.exam_id = er.exam_id and ia.room_id = er.room_id
        left join attendance_submissions s on s.exam_id = er.exam_id and s.room_id = er.room_id
       where er.exam_id = $1 and er.room_id = $2`,
     [examId, roomId],
@@ -219,7 +218,7 @@ export async function listDuties(q: Queryable, user: AuthUser) {
             to_char(e.start_time, 'HH24:MI') as "startTime", e.status as "examStatus",
             c.code as "courseCode", c.name as "courseName",
             r.id as "roomId", r.room_no as "roomNo", r.block, r.capacity,
-            app.staff_name(ia.incharge_id) as "inchargeName",
+            app.room_incharge_names(er.exam_id, er.room_id) as "inchargeName",
             (select count(*) from allocations a where a.exam_id = er.exam_id and a.room_id = er.room_id)::int as allocated,
             (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = er.room_id and ar.status = 'PRESENT')::int as present,
             (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = er.room_id and ar.status = 'ABSENT')::int as absent,
@@ -229,9 +228,9 @@ export async function listDuties(q: Queryable, user: AuthUser) {
        join examinations e on e.id = er.exam_id and e.is_active
        join courses c on c.id = e.course_id
        join rooms r on r.id = er.room_id
-       left join incharge_assignments ia on ia.exam_id = er.exam_id and ia.room_id = er.room_id
        left join attendance_submissions s on s.exam_id = er.exam_id and s.room_id = er.room_id
-      where ($1::boolean or ia.incharge_id = $2)
+      where ($1::boolean or exists (select 1 from incharge_assignments ia
+                                     where ia.exam_id = er.exam_id and ia.room_id = er.room_id and ia.incharge_id = $2))
       order by e.exam_date, e.session, r.room_no`,
     [user.role === 'ADMIN', user.id],
   );

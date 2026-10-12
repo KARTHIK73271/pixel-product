@@ -312,7 +312,7 @@ export async function adminDashboard(q: Queryable, f: DashboardFilter) {
           `select e.id as "examId", e.name as "examName", c.code as "courseCode", e.session,
                   to_char(e.start_time, 'HH24:MI') as "startTime",
                   r.id as "roomId", r.room_no as "roomNo", r.block, r.capacity,
-                  app.staff_name(ia.incharge_id) as "inchargeName",
+                  app.room_incharge_names(er.exam_id, er.room_id) as "inchargeName",
                   (select count(*) from allocations a where a.exam_id = er.exam_id and a.room_id = er.room_id)::int as allocated,
                   (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = er.room_id and ar.status = 'PRESENT')::int as present,
                   (select count(*) from attendance_records ar where ar.exam_id = er.exam_id and ar.room_id = er.room_id and ar.status = 'ABSENT')::int as absent,
@@ -321,7 +321,6 @@ export async function adminDashboard(q: Queryable, f: DashboardFilter) {
              join examinations e on e.id = er.exam_id
              join courses c on c.id = e.course_id
              join rooms r on r.id = er.room_id
-             left join incharge_assignments ia on ia.exam_id = er.exam_id and ia.room_id = er.room_id
              left join attendance_submissions s on s.exam_id = er.exam_id and s.room_id = er.room_id
             where ${EXAM_FILTER} and e.status = 'PUBLISHED' and e.exam_date = $7::date
               and ($6::uuid is null or er.room_id = $6::uuid)

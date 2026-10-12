@@ -172,6 +172,7 @@ export async function listStudents(
   const r = await q.query<Record<string, unknown> & { total: number }>(
     `select s.id, s.roll_no as "rollNo", s.full_name as "fullName", s.email, s.year, s.section, s.is_active as "isActive",
             s.department_id as "departmentId", d.code as "departmentCode", (s.user_id is not null) as "hasLogin",
+            coalesce((select u.google_linked from users u where u.id = s.user_id), false) as "googleLinked",
             (select count(*) from exam_students es join examinations e on e.id = es.exam_id
               where es.student_id = s.id and e.is_active)::int as "examCount",
             count(*) over ()::int as total
@@ -211,6 +212,7 @@ export async function listStaff(q: Queryable) {
   return (
     await q.query(
       `select u.id, u.email, u.full_name as "fullName", u.role, u.is_active as "isActive", u.last_login_at as "lastLoginAt",
+              u.google_linked as "googleLinked", u.password_login as "passwordLogin",
               (select count(*) from incharge_assignments ia join examinations e on e.id = ia.exam_id
                 where ia.incharge_id = u.id and e.is_active and e.exam_date >= $1::date)::int as "upcomingDuties"
          from users u where u.role in ('ADMIN', 'INCHARGE') order by u.role, u.full_name`,
@@ -219,8 +221,11 @@ export async function listStaff(q: Queryable) {
   ).rows;
 }
 
+/** Marker stored instead of a hash for Google-only accounts: never matches any password. */
+export const GOOGLE_ONLY_HASH = '!google-only';
+
 export async function createStaff(q: Queryable, input: UserCreateInput) {
-  const hash = await hashPassword(input.password);
+  const hash = input.password ? await hashPassword(input.password) : GOOGLE_ONLY_HASH;
   const r = await q.query<{ id: string }>(
     `insert into users (email, password_hash, role, full_name) values ($1, $2, $3, $4) returning id`,
     [input.email, hash, input.role, input.fullName],
@@ -229,9 +234,27 @@ export async function createStaff(q: Queryable, input: UserCreateInput) {
     action: 'USER_CREATED',
     entityType: 'user',
     entityId: r.rows[0].id,
-    summary: `Created ${input.role === 'ADMIN' ? 'admin' : 'in-charge'} account for ${input.fullName}`,
+    summary: `Created ${input.role === 'ADMIN' ? 'admin' : 'in-charge'} account for ${input.fullName}${input.password ? '' : ' (Google sign-in only)'}`,
   });
   return r.rows[0];
+}
+
+export async function unlinkGoogle(q: Queryable, id: string) {
+  const r = await q.query<{ ok: boolean }>('select app.unlink_google($1) as ok', [id]);
+  if (!r.rows[0].ok) throw notFound('User');
+  await audit(q, { action: 'GOOGLE_UNLINKED', entityType: 'user', entityId: id, summary: 'Removed the Google account binding from a user' });
+}
+
+export async function enableStudentLogin(q: Queryable, studentId: string) {
+  const r = await q.query<{ id: string }>('select app.enable_student_login($1) as id', [studentId]);
+  const s = await q.query<{ roll_no: string; email: string }>('select roll_no, email from students where id = $1', [studentId]);
+  await audit(q, {
+    action: 'STUDENT_LOGIN_ENABLED',
+    entityType: 'student',
+    entityId: studentId,
+    summary: `Enabled Google sign-in for ${s.rows[0].roll_no} (${s.rows[0].email})`,
+  });
+  return { userId: r.rows[0].id };
 }
 
 export async function updateStaff(q: Queryable, actor: AuthUser, id: string, input: { fullName?: string; isActive?: boolean }) {

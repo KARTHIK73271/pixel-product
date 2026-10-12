@@ -22,6 +22,10 @@ const app = createApp(db, { onMutation: () => (dirty = true) });
 const server = app.listen(config.port, () => {
   console.log(`[api] listening on http://localhost:${config.port} (${db.kind}${db.kind === 'pglite' ? `: ${config.pgliteDataDir}` : ''})`);
 });
+// Keep idle sockets open longer than clients/proxies do, so a reused keep-alive connection is never
+// closed by us mid-request (Node's 5 s default causes sporadic ECONNRESET).
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 
 let closing = false;
 async function shutdown() {

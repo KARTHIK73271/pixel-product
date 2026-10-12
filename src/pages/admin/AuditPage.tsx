@@ -29,6 +29,9 @@ const ACTIONS = [
   'ATTENDANCE_REOPENED',
   'ROOM_UPDATED',
   'USER_SIGNED_IN',
+  'SIGN_IN_REJECTED',
+  'GOOGLE_UNLINKED',
+  'STUDENT_LOGIN_ENABLED',
 ];
 
 export function AuditPage() {
