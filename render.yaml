@@ -1,8 +1,11 @@
 # Render Blueprint — one web service serving the API and the built SPA from a single origin.
 #
-# Deploy:  push this repo to GitHub → render.com → New → Blueprint → pick the repo.
-# Then set DATABASE_URL (marked sync:false below) to a Postgres connection string.
-# See README "Deploying a public demo" for the full walk-through.
+# Deploy:  render.com → New → Blueprint → pick this repo → Apply.
+# The service gets a permanent https://<name>.onrender.com address that stays valid for as long
+# as the service exists, independent of any laptop.
+#
+# After the first deploy, read ADMIN_PASSWORD in the Render dashboard (Environment tab) — that is
+# the password for admin@exam.local. See README "Deploying a public demo" for the walk-through.
 
 services:
   - type: web
@@ -18,32 +21,42 @@ services:
       - key: NODE_ENV
         value: production
       # Render terminates TLS one hop in front of the app; without this the real client IP
-      # is lost and the per-IP sign-in rate limit becomes a single global bucket.
+      # is lost and the per-IP sign-in rate limit becomes a single global bucket. It also lets
+      # the Google callback URL be derived as https://… rather than http://….
       - key: TRUST_PROXY
         value: "1"
-      # Disposable public demo: seeds demo data on first boot and shows the demo
-      # credentials on the login page. Remove BOTH for a real deployment.
+      # Load the sample examinations, rooms and students on first boot, so the link is worth
+      # opening straight away. Set to "false" for a deployment that starts empty.
       - key: ALLOW_DEMO_SEED
         value: "true"
+      # No credential panel on the login page: this instance is on the public internet, so the
+      # published demo password must not be shown, and (see below) it does not work either.
       - key: DEMO_MODE
-        value: "true"
+        value: "false"
+      # Render generates these once and shows them in the dashboard. On every boot the seeded
+      # accounts are moved off the published demo password and onto these, so only whoever can
+      # read this service's environment can sign in. ADMIN_PASSWORD is for admin@exam.local;
+      # STAFF_PASSWORD covers the in-charge and student sample logins.
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: STAFF_PASSWORD
+        generateValue: true
       - key: SESSION_TTL_HOURS
         value: "12"
-      # Paste a Postgres connection string in the Render dashboard (e.g. a free Neon database).
-      # Without it the app falls back to embedded PGlite on an ephemeral disk and loses all
-      # data on every restart — fine for a smoke test, wrong for an evaluation.
+      # Optional, and strongly recommended: a Postgres connection string (a free Neon database
+      # works). The free Render plan has no persistent disk, so without this the app falls back
+      # to embedded PGlite and loses everything each time the service restarts or wakes from
+      # idle. Leave the field blank at Apply time to decide later.
       - key: DATABASE_URL
         sync: false
       # Only if your provider presents a self-signed certificate chain: set to "insecure".
       # - key: DATABASE_SSL
       #   value: insecure
-      # Google Sign-In — optional. The redirect URI must be
-      # https://<your-service>.onrender.com/api/auth/google/callback
+      # Google Sign-In — optional. Add these two in the dashboard, and register
+      # https://<your-service>.onrender.com/api/auth/google/callback as an authorized redirect
+      # URI in Google Cloud Console. Nothing else is needed: the callback URL and the post-login
+      # origin are derived from the address the browser used.
       # - key: GOOGLE_CLIENT_ID
       #   sync: false
       # - key: GOOGLE_CLIENT_SECRET
-      #   sync: false
-      # - key: GOOGLE_REDIRECT_URI
-      #   sync: false
-      # - key: APP_URL
       #   sync: false

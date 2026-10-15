@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import cookieParser from 'cookie-parser';
@@ -9,6 +10,26 @@ import { AppError, errorHandler } from './http/errors';
 import { broadcastMutations } from './http/events';
 import { apiRoutes } from './routes/api';
 import { authRoutes } from './routes/auth';
+
+/**
+ * CSP hashes for the inline scripts in the built index.html (e.g. the pre-paint theme script).
+ * Allowing exactly those scripts keeps `script-src` strict — no 'unsafe-inline'. Read once; the
+ * build does not change while the server runs.
+ */
+let scriptHashes: string | null = null;
+function inlineScriptHashes(): string {
+  if (scriptHashes !== null) return scriptHashes;
+  scriptHashes = '';
+  try {
+    const html = fs.readFileSync(path.resolve('dist/index.html'), 'utf8');
+    for (const m of html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+      if (m[1].trim()) scriptHashes += ` 'sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}'`;
+    }
+  } catch {
+    /* no build yet (dev/test): nothing inline to allow */
+  }
+  return scriptHashes;
+}
 
 function securityHeaders(_req: Request, res: Response, next: NextFunction) {
   res.set({
@@ -22,7 +43,7 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction) {
   if (config.isProd) {
     res.set(
       'Content-Security-Policy',
-      "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
+      `default-src 'self'; script-src 'self'${inlineScriptHashes()}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'`,
     );
   }
   next();

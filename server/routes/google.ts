@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import type { Role } from '../../shared/schemas';
-import { exchangeCode, googleConfig, newAuthorization, OAuthError, redirectUriFor, safeReturnTo, sha256, verifyIdToken } from '../auth/google';
+import { appUrlFor, exchangeCode, googleConfig, newAuthorization, OAuthError, redirectUriFor, safeReturnTo, sha256, verifyIdToken } from '../auth/google';
 import { createSession, sessionCookieOptions } from '../auth/session';
 import { config } from '../config';
 import type { Database } from '../db/index';
@@ -47,8 +47,8 @@ export function googleRoutes(db: Database) {
     ...(maxAge ? { maxAge } : {}),
   });
 
-  const fail = (res: Response, reason: FailReason, extra: Record<string, string> = {}) => {
-    const base = googleConfig()?.appUrl ?? '';
+  // `base` = app origin to return to; '' keeps the redirect relative to the current host.
+  const fail = (res: Response, reason: FailReason, extra: Record<string, string> = {}, base = googleConfig()?.appUrl ?? '') => {
     res.clearCookie(STATE_COOKIE, stateCookie());
     res.redirect(303, `${base}/login?${new URLSearchParams({ oauth_error: reason, ...extra })}`);
   };
@@ -69,10 +69,11 @@ export function googleRoutes(db: Database) {
     asyncHandler(async (req, res) => {
       const cfg = googleConfig();
       if (!cfg) return fail(res, 'not_configured');
-      if (req.ctx) return res.redirect(303, `${cfg.appUrl}${homeFor(req.ctx.user.role)}`); // already signed in
-      if (!startAllowed(req.ip ?? 'unknown')) return fail(res, 'rate_limited');
-
       const redirectUri = redirectUriFor(cfg, req);
+      const appUrl = appUrlFor(cfg, redirectUri);
+      if (req.ctx) return res.redirect(303, `${appUrl}${homeFor(req.ctx.user.role)}`); // already signed in
+      if (!startAllowed(req.ip ?? 'unknown')) return fail(res, 'rate_limited', {}, appUrl);
+
       const auth = newAuthorization(cfg, redirectUri);
       await db.system(async (q) => {
         await q.query('delete from oauth_transactions where expires_at < now()');
@@ -111,17 +112,20 @@ export function googleRoutes(db: Database) {
         )
       ).rows[0];
       if (!tx || tx.expired) return fail(res, 'state');
+      // the token exchange must repeat the exact redirect_uri this authorization started with
+      const redirectUri = tx.redirect_uri ?? redirectUriFor(cfg, req);
+      const appUrl = appUrlFor(cfg, redirectUri);
 
       let identity;
       try {
-        const idToken = await exchangeCode(cfg, code, tx.code_verifier, tx.redirect_uri ?? redirectUriFor(cfg, req));
+        const idToken = await exchangeCode(cfg, code, tx.code_verifier, redirectUri);
         identity = await verifyIdToken(cfg, idToken, tx.nonce);
       } catch (err) {
         const reason = err instanceof OAuthError ? err.reason : 'exchange_failed';
         console.warn(`[auth] Google sign-in failed: ${(err as Error).message}`);
-        if (reason === 'unverified_email') return fail(res, 'unverified_email');
-        if (reason === 'domain') return fail(res, 'domain');
-        return fail(res, 'failed');
+        if (reason === 'unverified_email') return fail(res, 'unverified_email', {}, appUrl);
+        if (reason === 'domain') return fail(res, 'domain', {}, appUrl);
+        return fail(res, 'failed', {}, appUrl);
       }
 
       // Match a pre-registered account: by bound Google subject first, otherwise by verified email.
@@ -144,7 +148,7 @@ export function googleRoutes(db: Database) {
           reason: outcome.reason,
           ip: req.ip,
         });
-        return fail(res, outcome.reason, outcome.reason === 'not_registered' ? { email: identity.email } : {});
+        return fail(res, outcome.reason, outcome.reason === 'not_registered' ? { email: identity.email } : {}, appUrl);
       }
 
       const { user } = outcome;
@@ -157,7 +161,7 @@ export function googleRoutes(db: Database) {
           JSON.stringify({ method: 'google' }),
         ]),
       );
-      res.redirect(303, `${cfg.appUrl}${tx.return_to ?? homeFor(user.role)}`);
+      res.redirect(303, `${appUrl}${tx.return_to ?? homeFor(user.role)}`);
     }),
   );
 

@@ -47,6 +47,48 @@ It prints two links: `http://localhost:8080` for this laptop and `http://<your-i
 
 **Run the project on another laptop (copy the folder):** copy the project folder without `node_modules`, `dist` or `.data`, install Node.js 20+ from <https://nodejs.org>, then double-click **`START-APP.bat`** (or run `npm install` then `npm run share`). The first run installs packages and loads the demo data; later runs keep the data.
 
+### A permanent public link (deploying a public demo)
+
+`npm run share:public` opens a Cloudflare quick tunnel, which is the fast way to show someone the
+app right now. That address is temporary by design: it dies when the process stops and a new one
+is issued on every restart. A link that stays valid has to be hosted, so that it no longer depends
+on this laptop being switched on.
+
+This repo ships a Render blueprint ([`render.yaml`](render.yaml)) for exactly that.
+
+1. Push the repo to GitHub (already done for this project).
+2. Go to <https://dashboard.render.com/blueprints> → **New Blueprint Instance** → pick the repo →
+   **Apply**. Render reads `render.yaml`, builds, and gives the service a permanent
+   `https://<name>.onrender.com` address.
+3. `DATABASE_URL` is the one field it asks for. Leave it blank to try the app immediately, or
+   paste a Postgres connection string to keep your data (see below).
+4. When the first deploy finishes, open the service's **Environment** tab and copy
+   **`ADMIN_PASSWORD`**. That is the password for `admin@exam.local`. **`STAFF_PASSWORD`** is the
+   password for the in-charge and student sample accounts.
+
+**Credentials on a hosted instance.** The published demo password does not work there. Render
+generates `ADMIN_PASSWORD` and `STAFF_PASSWORD` once, and on every boot
+[`server/boot/public-credentials.ts`](server/boot/public-credentials.ts) applies them to the
+seeded `exam.local` accounts, so a public URL never ships with a password that is printed in this
+README. Editing either value in the dashboard changes the login on the next deploy. Accounts with
+a real email address are never touched by this.
+
+**Keeping your data.** Render's free plan has no persistent disk, so without `DATABASE_URL` the
+embedded PGlite database is wiped whenever the service restarts or wakes from idle, and the sample
+data is re-seeded. Create a free Postgres database (Neon, Supabase or Render's own) and paste its
+connection string into `DATABASE_URL` to make the data permanent. The schema migrates itself on
+first boot.
+
+**What "free" costs you.** A free Render service sleeps after roughly 15 minutes without traffic
+and takes around a minute to answer the next request. The URL itself stays valid throughout. A
+paid instance type removes the sleep; nothing else about the setup changes.
+
+**Google sign-in on the hosted URL.** Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the
+dashboard, and register `https://<your-service>.onrender.com/api/auth/google/callback` as an
+authorized redirect URI in Google Cloud Console. Do not set `GOOGLE_REDIRECT_URI` or `APP_URL`:
+both are derived from the address the browser actually used, which is what makes the same build
+work on localhost and on the hosted domain at once.
+
 ### Demo accounts (development only)
 
 Created by `npm run db:seed`. They share one password: **`Demo@2026`**. The login screen only offers them when demo mode is on (development); they are never enabled in production.

@@ -1,4 +1,5 @@
 import { createApp } from './app';
+import { applyHostedCredentials } from './boot/public-credentials';
 import { config } from './config';
 import { openDatabase } from './db/connection';
 import { migrate } from './db/migrate';
@@ -28,6 +29,14 @@ if (process.env.ALLOW_DEMO_SEED === 'true') {
   } catch (err) {
     console.error(`[seed] first-boot seeding failed: ${(err as Error).message}`);
   }
+}
+
+// A hosted instance replaces the published demo password with host-held secrets. No-op locally.
+// Logged rather than thrown for the same reason as seeding: never crash-loop the service.
+try {
+  await applyHostedCredentials(db);
+} catch (err) {
+  console.error(`[credentials] hosted credential bootstrap failed: ${(err as Error).message}`);
 }
 
 // Embedded mode: refresh the last-known-good snapshot after startup and periodically after writes.
