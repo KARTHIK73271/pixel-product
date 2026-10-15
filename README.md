@@ -60,9 +60,8 @@ This repo ships a Render blueprint ([`render.yaml`](render.yaml)) for exactly th
 2. Go to <https://dashboard.render.com/blueprints> → **New Blueprint Instance** → pick the repo →
    **Apply**. Render reads `render.yaml`, builds, and gives the service a permanent
    `https://<name>.onrender.com` address.
-3. `DATABASE_URL` is the one field it asks for. Leave it blank to try the app immediately, or
-   paste a Postgres connection string to keep your data (see below).
-4. When the first deploy finishes, open the service's **Environment** tab and copy
+   The blueprint asks for nothing, so there is no form to fill in.
+3. When the first deploy finishes, open the service's **Environment** tab and copy
    **`ADMIN_PASSWORD`**. That is the password for `admin@exam.local`. **`STAFF_PASSWORD`** is the
    password for the in-charge and student sample accounts.
 

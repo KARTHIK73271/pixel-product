@@ -20,6 +20,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Pinned so a future default on the host cannot change the runtime under the app.
+      - key: NODE_VERSION
+        value: "22"
       # Render terminates TLS one hop in front of the app; without this the real client IP
       # is lost and the per-IP sign-in rate limit becomes a single global bucket. It also lets
       # the Google callback URL be derived as https://… rather than http://….
@@ -43,12 +46,13 @@ services:
         generateValue: true
       - key: SESSION_TTL_HOURS
         value: "12"
-      # Optional, and strongly recommended: a Postgres connection string (a free Neon database
-      # works). The free Render plan has no persistent disk, so without this the app falls back
-      # to embedded PGlite and loses everything each time the service restarts or wakes from
-      # idle. Leave the field blank at Apply time to decide later.
+      # Left empty so the blueprint applies without asking anything: the app falls back to the
+      # embedded PGlite database and the deploy just works. The free plan has no persistent
+      # disk, though, so that database is wiped whenever the service restarts or wakes from
+      # idle. To keep data, paste a Postgres connection string here in the dashboard (a free
+      # Neon database works) — the schema migrates itself on the next boot.
       - key: DATABASE_URL
-        sync: false
+        value: ""
       # Only if your provider presents a self-signed certificate chain: set to "insecure".
       # - key: DATABASE_SSL
       #   value: insecure
